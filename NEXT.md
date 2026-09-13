@@ -2,36 +2,39 @@
 
 ## Current objective
 
-Find a no-patch way to make signed RU05 HVAC reevaluate Fragrance visibility after its embedded config stack has loaded config50 on the RU02 system base.
+Determine whether RU05's stock configuration-change handling can be used as a no-patch, same-process Fragrance visibility refresh after config50 has loaded.
 
 ## Current state
 
-- Current RU02-generation T1J UI has no Fragrance visibility activation path; static HVAC-targeting RRO is absent.
+- Current RU02-generation T1J UI still has no Fragrance visibility activation path; static HVAC-targeting RRO is absent.
 - RU05 T1J has a valid visibility path: `OfflineConfigManager.e()` -> `getConfig(50)==1` -> `VISIBLE(0)` / `INVISIBLE(4)`.
-- RU05 `getJetourEolConfig(50)` maps exactly to `(mCarConfig1[12] >> 6) & 1`, same as RU02.
-- RU05 `EolConfig.loadConfig()` fetches `vehicle.persist.project.ext.configs` through VDBus `getOnce(0xe0006)` and stores it into static `mCarConfig1`.
-- If VehicleDevice is already connected during `CarConfigUtil.init()`, loadConfig runs immediately. Otherwise init only starts `bindService()` and returns; `onVDConnected()` later subscribes and calls loadConfig.
-- Event `0xe0579` can later update `mCarConfig1` through `EolConfig.updateConfig()`.
-- `HvacApplication.onCreate()` calls `CarConfigUtil.init()` before `view/b.I0(context)`.
-- RU05 has no normal HVAC Activity in its manifest; it has `HvacApplication` and exported `HvacService`.
-- `BottomLayoutBindingImpl.onFieldChange()` always returns false.
-- `EolConfig`/`CarConfigUtil` are not observable dependencies of the bottom binding.
-- A late `EolConfig.updateConfig()` does not automatically request a rebind.
-- Fragrance predicate is reevaluated only when the bottom binding's own dirty flags are set, e.g. by `invalidateAll()` or `setHvacContentView()`.
-
-## Working hypothesis
-
-If RU05 first evaluated Fragrance before VDBus had populated `mCarConfig1`, it could set the button `INVISIBLE`. A later successful config load would not automatically refresh that visibility. This is technically supported but not yet proven to be the exact live failure sequence.
+- RU05 maps config50 exactly as `(mCarConfig1[12] >> 6) & 1` and loads the same project ext-config through its embedded VDBus stack.
+- Async config load/update does not automatically rebind existing BottomLayout.
+- RU05 `view/b.t1()` is now proven to remove the existing main HVAC child, inflate a new `HvacMainViewBinding`, capture its new `bottomLayout`, and add the new root back while staying in the same process.
+- `view/b.I0(context)` calls `L0()`, and the traced initialization path reaches `t1()`.
+- Exported `HvacService` has stock `type` commands (`OPEN_PANEL`, `CLOSE_PANEL`, `CONTROL_PANEL`, `SSS`, `HHH`, VR open/close fragment), but none is yet proven to call `t1()` directly.
+- `HvacApplication` contains a private method with log string `onConfigurationChanged destoryAndReshow isHvacShow=`; the configuration-change path calls this method, making it the strongest stock rebuild candidate.
+- The current lifecycle report omitted the middle of that private method, so the exact destroy/re-show sequence is still unknown.
 
 ## Next step
 
-One narrow static lifecycle trace:
+From the already decoded RU05 APK, extract only:
 
-1. find where RU05 `BottomLayoutBinding` / `BottomLayoutBindingImpl` is inflated or created;
-2. find where `setHvacContentView` / variable ID 2 is assigned;
-3. trace the owning `view/b` lifecycle methods that create/remove/recreate the bottom view;
-4. inspect exported `HvacService` actions/commands only for a safe existing way to trigger that recreation without killing the process.
+1. full `HvacApplication.smali` private method `b()V`;
+2. full configuration-change callback that invokes `b()`;
+3. full `HvacApplication$a.smali` Handler class, because the application constructor creates this handler and the rebuild method may defer work through it.
 
-If such a path exists, the live test after vehicle return is: install signed RU05 HVAC, wait until its VDBus config is populated, trigger only the stock view/binding recreation path, and check whether Fragrance becomes visible.
+Do not run more broad grep/audit scripts.
 
-Do not install additional RU05 components yet. Do not patch signed Desay APKs. Do not perform blind VDBus/property writes.
+If those exact bodies prove a same-process destroy + `I0/L0/t1` reinitialization, prepare a reversible live test for vehicle return:
+
+- install/start signed RU05 HVAC;
+- verify/wait for RU05 config load (`mCarConfig1` / config50=1) from logs;
+- capture the current Android configuration value to be changed;
+- trigger one benign configuration change through ADB;
+- verify the stock `destoryAndReshow` path and Fragrance visibility;
+- restore the original configuration value.
+
+Do not yet choose or execute the ADB configuration command until the exact application code shows which configuration fields it reacts to and how the rebuild works.
+
+Do not install additional RU05 components, patch Desay APKs, or blind-write VDBus/properties.
