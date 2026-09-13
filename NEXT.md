@@ -2,7 +2,7 @@
 
 ## Current objective
 
-Live-validate the proven RU05 same-process configuration-change rebuild as a no-patch Fragrance visibility refresh after config50 has loaded.
+Discriminate whether the previously observed RU05 day/night/auto no-effect result actually exercised the proven Android configuration-change rebuild after config50 was already loaded.
 
 ## Current state
 
@@ -11,33 +11,36 @@ Live-validate the proven RU05 same-process configuration-change rebuild as a no-
 - RU05 maps config50 exactly as `(mCarConfig1[12] >> 6) & 1` and loads the project ext-config through its embedded VDBus stack.
 - Late config update does not automatically refresh the existing BottomLayout binding.
 - RU05 `view/b.t1()` rebuilds the main/bottom DataBinding tree in the same process.
-- Exact configuration-change path is now proven:
+- Exact configuration-change path is proven:
   `onConfigurationChanged()` -> private `b()` -> if shown `d1(false)` -> handler message -> `I0(context)` -> `L0()` -> `t1()` -> fresh BottomLayout binding.
-- `onConfigurationChanged()` only enters this rebuild when language changes or `(uiMode & 0x30)` changes.
-- Because the process remains alive, already-loaded static `EolConfig.mCarConfig1` can survive into the fresh binding evaluation.
+- `onConfigurationChanged()` enters this rebuild when language changes or `(uiMode & 0x30)` changes.
+- Historical direct live evidence: while signed RU05 HVAC was installed on the running canonical vehicle, the user manually switched HU quick-shade day/night/auto modes and Fragrance did not appear.
+- That historical test did not capture whether the shade switch actually changed Android `uiMode & 0x30`, triggered the exact rebuild, preserved the same PID, or occurred after RU05 `getConfig(50)` became `1`.
 
 ## Next step
 
-Vehicle-return live test, one safe step at a time.
+When the vehicle returns, do not blindly repeat day/night switching.
 
-First read-only step before any change:
+First capture the runtime preconditions read-only:
 
-1. install/start exact signed RU05 HVAC as previously validated;
-2. verify from runtime evidence that RU05 has loaded Fragrance config50 as `1`;
-3. capture current Android night/uiMode state with ADB and keep that value for rollback.
+1. exact signed RU05 HVAC running;
+2. PID of `com.desaysv.svhvac`;
+3. focused logcat proving RU05 `isFragranceExist` / config50 state;
+4. current Android night/uiMode state;
+5. focused logcat filters for `onConfigurationChanged`, `destoryAndReshow`, `destroyHvac`, `HvacContentView init`, and `isFragranceExist`.
 
-Only after the original state is recorded, toggle night mode to the opposite value once, observe the app logs/UI, and immediately restore the original value.
+Only after that evidence is live, toggle Android night mode once through ADB and observe:
 
-Expected proof chain in logs:
+- whether PID remains unchanged;
+- whether the exact configuration rebuild chain runs;
+- whether fresh binding logs `isFragranceExist=true`;
+- whether the Fragrance entry becomes visible.
 
-- `onConfigurationChanged currentNightMode...`
-- `onConfigurationChanged destoryAndReshow isHvacShow=...`
-- `destroyHvac isNeedRemoveRoot=false`
-- `HvacContentView init`
-- `isFragranceExist = true`
+Interpretation:
 
-Success criterion: Fragrance entry becomes visible after the fresh BottomLayout binding is created.
-
-If the rebuild occurs and `isFragranceExist=true` but the button still does not appear, reopen only the RU05 generated binding/runtime UI state. If config50 is not `1` at rebuild time, investigate runtime class loading / RU05 config stack instead.
+- rebuild executes + same PID + `isFragranceExist=true` + button appears -> no-patch RU05 workaround proven;
+- rebuild executes + same PID + `isFragranceExist=true` + button absent -> stale-binding workaround disproven; reopen only RU05 runtime binding/UI path;
+- rebuild executes but `isFragranceExist=false` -> investigate RU05 runtime config/class-loading path;
+- shade control does not produce the same Android configuration-change logs -> prior manual day/night/auto observation does not test this mechanism.
 
 Do not install additional RU05 components, patch Desay APKs, or blind-write VDBus/properties.
