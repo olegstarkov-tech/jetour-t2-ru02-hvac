@@ -15,27 +15,25 @@ The focused CarInfo RU06 vs RU02-labeled source diff is complete:
 - the normalized JADX WARN/ERROR reports are identical as 662-line multisets, including the same AndroidX `DiffUtil.java:107` RegionMakerVisitor failure;
 - therefore there is currently no evidence of a functional application-code difference in CarInfo between these two artifacts.
 
-The focused HVAC RU06 vs RU02-labeled generated-source diff is also complete:
+The focused HVAC RU06 vs RU02-labeled DEX diff is now also closed as Fragrance-irrelevant:
 
 - exactly one generated Java file differs: `com/desaysv/svhvac/view/b.java`;
-- the only shown Java-code delta is `K1(boolean)`;
-- RU02-labeled code adds `com.desaysv.svhvac.h.a.a().h()` as a guard around the existing `ionAnimation` update block;
-- `com.desaysv.svhvac.h.a` is `OfflineConfigManager`;
-- RU06 and RU02-labeled decompiled `OfflineConfigManager.java` are byte-identical;
-- `h()` is definitively `isIonExist`, checking config ID 91 and logging `isIonExist`;
+- the only behavior delta is `K1(boolean)`;
+- RU02-labeled code adds `OfflineConfigManager.h()` before the existing `ionAnimation` block;
+- `h()` is definitively `isIonExist`, checking config ID 91;
 - Fragrance is separately `f()`, checking config ID 50 plus `!isT1H_PHEV()`;
-- call sites of `h()` are ionizer-specific (`onIonClick`, `ion is no exist`, `isIonExistShow`);
-- therefore the sole generated-Java RU06->RU02 delta is currently classified as ionizer/config91-specific, not Fragrance/config50-specific.
+- direct apktool/smali diff confirms RU02 inserts only the `h()` call plus early `return-void`; the extracted `h()Z` method itself is unchanged;
+- therefore this DEX delta does not explain missing Fragrance.
 
 The canonical vehicle is temporarily unavailable for about six days. This defers live APK hash identity but does not block offline analysis.
 
 Immediate read-only offline discriminator:
 
-1. verify the `K1(boolean)` RU06 vs RU02 delta directly at smali/DEX level rather than relying only on JADX;
-2. if smali confirms only the `config91` ionizer guard, close the Java-code delta as unrelated to Fragrance;
-3. decode and diff the HVAC AndroidManifest and `resources.arsc` changes;
-4. if those also do not explain Fragrance, pivot to system/framework/backend comparison (`vdbus_extra.jar`, VehicleDevice, VehicleService and related persistent config/event path) using the available firmware payloads;
-5. use RU05 only as the older reference generation once a concrete changed framework/backend component is identified.
+1. decode and diff RU06 vs RU02-labeled HVAC `AndroidManifest.xml` using the same apktool/aapt toolchain;
+2. produce a normalized resource-table diff for `resources.arsc`, focusing first on values/bools/integers/styles/ids/aliases and any entries referenced by Fragrance UI;
+3. verify whether any resource indirection changes `fragrance_btn` visibility, layout selection or feature-specific boolean/integer values despite byte-identical Fragrance XML layouts;
+4. if manifest/resources do not explain Fragrance, pivot to system/framework/backend comparison (`vdbus_extra.jar`, VehicleDevice, VehicleService and related persistent config/event path) using the available firmware payloads;
+5. use RU05 as the older reference generation once a concrete changed framework/backend component is identified.
 
 Artifact identity remains open: earlier live `dumpsys` CarInfo versionName matches the local artifact currently labeled RU06, not the RU02-TEL-2026-labeled artifact. When the vehicle becomes available, pull/hash the live CarInfo and HVAC APKs and reconcile labels before any package replacement experiment.
 
