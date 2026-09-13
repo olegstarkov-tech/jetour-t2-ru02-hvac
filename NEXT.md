@@ -6,27 +6,25 @@ Identify the RU02 native backend condition that blocks OEM Fragrance despite con
 
 ## Current state
 
-- Framework config path is mapped through VehicleDevice event 918905 -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig` -> config50.
-- Ordinary Java ownership search is negative across scanned `system`, `product`, `system_ext`, and vendor APK/JAR populations.
-- Full vendor inventory proves the relevant backend is native, not a hidden APK/JAR.
-- Native service `/vendor/bin/hw/com.desaysv.vehicledevice@1.0-service` links both Android Automotive Vehicle HAL and Desay VehicleBus layers.
-- The service imports `VehicleBusStub::publish()` plus get/set/bulkGet/subscribe/unsubscribe.
-- `libdesaysv_vehicledevice.so` exports `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, `setVehiclePropertyConfigCallback`, and related project-config handlers.
-- The same implementation library contains `vehicle.persist.project.ext.configs` through `ext.configs9`, project code/PN/phonelink keys, `countryCode`, and `ro.sys.ivi.eol.country.code`.
-- This localizes the exact RU02 project-config ingestion layer. The still-unproven edge is how its key/value callback becomes the framework VehicleBus/VDBus event path and whether a condition/filter is applied there.
-- Raw literal 32-bit searches for 918905/917510 in the first three native targets were negative; this does not close the event path.
+- Framework config path is mapped through VehicleDevice event `918905` -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig` -> config50.
+- Relevant RU02 backend is native: `com.desaysv.vehicledevice@1.0-service` + `libdesaysv_vehicledevice.so` + Desay VehicleBus libraries.
+- Service imports `VehicleBusStub::publish()` and registers `ISVPVehiclePropertyConfigCallback` through `SVPVehicleDevice::setVehiclePropertyConfigCallback(...)`.
+- Service contains `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`.
+- `VehicleHal::setProjectExtConfigs(key,value)` is traced: ignore empty/unchanged values; otherwise update store/EOL config then invoke registered callback with the same key/value.
+- `VehicleHal::onVehiclePropertyConfigChange(key,value)` is traced: log then directly forward key/value to callback when present.
+- No country/project/market/telematics/Fragrance-specific filter exists in these two HAL functions.
+- Previous publish-callsite section was blank because grep searched demangled `VehicleBusStub::publish`, while llvm-objdump retained the mangled PLT spelling.
 
 ## Next step
 
-Do one focused static trace, not another broad scan:
+Do one focused service-side trace:
 
-1. inspect defined symbols/classes in `com.desaysv.vehicledevice@1.0-service` for the implementation of `ISVPVehiclePropertyConfigCallback` or equivalent project-property callback;
-2. locate service call sites to `VehicleBusStub::publish()`;
-3. disassemble `VehicleHal::onVehiclePropertyConfigChange(...)`, `VehicleHal::setProjectExtConfigs(...)`, and `VehicleHal::requestProjectConfigs()` from `libdesaysv_vehicledevice.so`;
-4. correlate callback key/value handling with VehicleBus event construction/publish;
-5. only if construction is delegated, follow the exact referenced function into `libdesaysv_vehiclebus.so` or its selected backend;
-6. specifically note branches involving country/project/product IDs, `ro.sys.ivi.eol.country.code`, telematics/TBox/capability, or filtering of `vehicle.persist.project.ext.configs`.
+1. locate the PLT relocation/address for mangled `_ZN14VehicleBusStub7publishERK15VehicleBusEvent` in `com.desaysv.vehicledevice@1.0-service`;
+2. find every `bl` callsite to that PLT address in the existing service disassembly;
+3. locate the code xref to the service log string `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s` (string file offset `0x4929` in the current binary report; verify its runtime VA from ELF sections rather than assuming offset==VA);
+4. dump the complete containing callback function and correlate its event ID/bundle construction with the publish call;
+5. only if event ID construction is delegated, follow that exact referenced function into `libdesaysv_vehiclebus.so` or its backend.
 
-Do not return to APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
+Do not broaden back to APK/OAT/VDEX searches or blind writes.
 
-When the vehicle is available again, reconcile live HVAC/CarInfo hashes with local artifacts and run only the runtime tests implied by this static trace.
+When the vehicle is available again, reconcile live HVAC/CarInfo hashes and run only runtime tests implied by this static trace.
