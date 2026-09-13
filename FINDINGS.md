@@ -27,9 +27,9 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - Exact DEX `class_def` scan checked 88 RU02 APKs across `system/app`, `system/priv-app`, `product/app`, and `product/priv-app`; zero exact VehicleDevice owners found.
 - Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app paths checked 102 Java archives; zero exact owners found.
 - Therefore no scanned ordinary APK/JAR in `system`, `product`, or `system_ext` defines VehicleDevice.
-- First vendor owner scan is INCONCLUSIVE, not negative: `vendor.img` extraction succeeded but only one archive was actually checked, so traversal/layout coverage was insufficient.
-- Vendor root inspection proves a dedicated top-level `/vehicle` directory exists alongside `/app`, `/bin`, `/lib`, `/lib64`, `/odm`, etc.
-- The first vendor scanner did not traverse `/vehicle`; it reached only `/app/TimeService/TimeService.apk`. Therefore `/vehicle` remains untested and is the highest-priority vendor subtree for VehicleDevice ownership localization.
+- First vendor owner scan is INCONCLUSIVE, not negative: vendor extraction succeeded but traversal reached only `/app/TimeService/TimeService.apk`.
+- Vendor root contains a top-level `/vehicle` directory.
+- Direct `/vehicle` inspection shows only `/vehicle/etc/svp_tuner_hal_conf.xml` and `/vehicle/etc/vehicle.hardkey.conf`; no APK/JAR/service container is present there at the inspected depth.
 
 ## DISPROVEN
 
@@ -48,7 +48,8 @@ Do not reopen without new contradictory evidence:
 - `DesaySVProjectService.apk` implements VehicleDevice.
 - `SVVDSCarStateService.apk` implements VehicleDevice.
 - Any scanned ordinary APK/JAR in `system`, `product`, or `system_ext` defines VehicleDevice.
-- The current vendor scan proves vendor lacks VehicleDevice. It does not; `/vehicle` was not traversed.
+- The current vendor scan proves vendor lacks VehicleDevice.
+- `/vehicle` contains the Java VehicleDevice implementation.
 
 ## OPEN
 
@@ -56,8 +57,8 @@ Do not reopen without new contradictory evidence:
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 - Where is the actual RU02 class definition for `com.desaysv.ivi.vds.vdev.service.VehicleDevice`?
-- Does vendor `/vehicle` contain the implementation or its preoptimized/native packaging?
-- If `/vehicle` is negative, is VehicleDevice supplied through OAT/VDEX/APEX/native/system-service packaging elsewhere?
+- Does vendor contain it somewhere outside the assumed app/framework paths and `/vehicle/etc`?
+- If vendor is truly negative after recursive coverage, is VehicleDevice supplied through OAT/VDEX/APEX/native/system-service packaging?
 - How does VehicleDevice obtain/publish `vehicle.persist.project.ext.configs` through event 918905, and are there project/market/telematics/capability gates there?
 
 ## Constraints
