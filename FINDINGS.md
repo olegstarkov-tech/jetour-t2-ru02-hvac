@@ -31,19 +31,21 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - RU05 T1J `BottomLayoutBindingImpl.executeBindings()` explicitly calls `fragranceBtn.setVisibility(...)`.
 - Exact RU05 generated-binding register flow is `OfflineConfigManager.e() -> v14 -> (v14 ? 0 : 4) -> v13 -> fragranceBtn.setVisibility(v13)`.
 - Thus RU05 had a real T1J predicate-driven Fragrance visibility path: predicate true gives `VISIBLE(0)`, false gives `INVISIBLE(4)`.
-- RU05 obfuscated OfflineConfigManager method letters differ from RU02-generation letters. RU05 `view/b` uses `OfflineConfigManager.f()` to control `ivFrontWindHeat` visibility, so RU02 `f()==isFragranceExist` must not be applied to RU05 by method letter.
+- Exact RU05 OfflineConfigManager method/log mapping from smali is: `c()` driver-seat heat, `d()` driver-seat ventilation, `e()` Fragrance, `f()` front-wind heat, `g()` ion, `h()` PM2.5, `i()` passenger-seat heat, `j()` passenger-seat ventilation, `k()` UV, `l()` wheel heat.
+- Therefore RU05 `OfflineConfigManager.e()` is definitively `isFragranceExist` and is the predicate wired to `fragranceBtn.setVisibility(...)`.
+- The exact config ID and any secondary condition inside RU05 `e()` are not yet recorded; the quick grep omitted the preceding constant and must not be inferred from RU02 method lettering alone.
 
 ## LIKELY
 
 - For the current RU02-generation HVAC, the leading static root-cause explanation remains a T1J UI implementation omission/regression: config/backend/model exists and config50 reaches HVAC, but the T1J entry ships `GONE` and the generated binding never exposes it.
 - Because the static HVAC-targeting RRO alternative is closed, the current-generation UI omission is substantially stronger than prior backend/display-ID hypotheses.
-- The signed RU05 failure on the RU02 system base is a separate issue from the current T1J UI omission. Since RU05 has a visibility path, the old APK likely evaluated its controlling predicate false or otherwise failed to resolve the expected config state under the RU02 system/framework environment. This remains to be proven.
+- The signed RU05 failure on the RU02 system base is a separate issue from the current T1J UI omission. Since RU05 has a valid Fragrance visibility path, its `isFragranceExist` predicate likely evaluated false or resolved config differently on the RU02 system/framework environment. This remains to be proven.
 
 ## DISPROVEN
 
 Do not reopen without new contradictory evidence:
 
-- Engineering writes the wrong Fragrance bit.
+- Engineering writes the wrong Fragrance bit in the current RU02-generation path.
 - New HVAC uses a different config ID instead of 50.
 - Fragrance code/resources were removed from current HVAC.
 - Installing old HVAC APK alone solves the problem.
@@ -56,11 +58,11 @@ Do not reopen without new contradictory evidence:
 - Current RU02-generation T1J `BottomLayoutBindingImpl` contains a hidden `OfflineConfigManager.f()` or `fragranceBtn.setVisibility()` activation path.
 - A static RU02 overlay in the scanned system/product/system_ext/vendor overlay directories targets `com.desaysv.svhvac` and unhides the Fragrance entry.
 - RU05 T1J has the same `fragrance_btn=GONE` plus missing visibility-binding omission as RU02-generation HVAC.
+- RU05 `OfflineConfigManager.f()` is Fragrance; exact RU05 smali proves Fragrance is `e()` and `f()` is front-wind heat.
 
 ## OPEN
 
-- What exact feature/config predicate is RU05 `OfflineConfigManager.e()`?
-- Does RU05 `e()` directly read config50 / Fragrance from its embedded/linked CarConfig implementation?
+- What exact config ID and secondary conditions does RU05 `OfflineConfigManager.e()` / `isFragranceExist` use?
 - Why did the signed RU05 HVAC still keep the Fragrance entry hidden when run on the RU02 system base despite having a real T1J visibility path?
 - Is any runtime/dynamic overlay active on the live vehicle outside the static partition images? Pending `cmd overlay list --user 0 com.desaysv.svhvac` when vehicle access returns.
 - Which local HVAC/CarInfo artifacts are byte-exact with the live canonical vehicle? Live reconciliation remains pending until vehicle access returns.
