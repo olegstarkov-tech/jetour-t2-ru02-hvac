@@ -2,30 +2,33 @@
 
 ## Current objective
 
-Identify the real RU02 Fragrance availability/capability mechanism that keeps OEM Fragrance hidden despite config50=1.
+Identify the real RU02 Fragrance UI activation mechanism that keeps the OEM entry hidden despite config50=1.
 
 ## Current state
 
-- Framework config path is mapped through VehicleDevice event 918905 -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig` -> config50.
-- Native project-config transport is statically closed end-to-end and should not be reopened without contradictory evidence.
-- Current static audit is against local `SVHvac_RU02_2026.apk` SHA-256 `2819ccafd364fb46bf06c492932fdc6fb4768c75705d243ef66b0c6518ce765a`, matching the established local RU02-labeled hash.
-- Broad grep did not expose a concrete `FragranceDisplay`/`FragranceWarning` consumer and found no direct numeric cases for candidate IDs 58/59/60/61/62/64/66/71/76/88. This is inconclusive for obfuscated backend/model code.
-- Visible view/dialog callbacks only prove ordinary operational behavior; no direct main-button visibility change has been found.
-- `b.a.d.a.b.x0` is exactly `FragrancePresenter` and is now CLOSED as the likely hidden gate layer.
-- `x0` simply obtains `IFragranceModel` from `b.a.b.a.c.e.b()`, registers/unregisters a model listener, forwards all callbacks without filtering, and directly delegates its getters/setters to the model.
-- Operational mapping from x0/UI usage: `k=level`, `l=position`, `m=power`, `n/o/p=remain1/2/3`, `q/r/s=type1/2/3`.
+- Project-config transport through VehicleDevice event 918905 -> VDBus -> CarConfigUtil -> EolConfig -> config50 is statically closed end-to-end.
+- Current static audit is against local `SVHvac_RU02_2026.apk` SHA-256 `2819ccafd364fb46bf06c492932fdc6fb4768c75705d243ef66b0c6518ce765a`, matching the established local RU02-labeled artifact hash.
+- `b.a.d.a.b.x0` is exactly `FragrancePresenter` and contains no hidden availability/visibility condition; it directly delegates to `IFragranceModel` and forwards callbacks.
+- `ModelFactory.b()` returns `b.a.b.a.c.b`, compiled as `FragranceModel`.
+- `FragranceModel` implements `IFragranceModel` and `CarInfoHelper.ISpiListener`.
+- Its exact module is `327690` and exact subscribed/read ID set is `{58,59,60,61,62,71,92,93,94}`.
+- Mapping: 58/59/60 = type1/type2/type3, 61 = power, 62 = level, 71 = position/channel, 92/93/94 = remain1/remain2/remain3.
+- Writes are only IDs 61, 62, and 71.
+- IDs 64 (`AC_FRAGRANCE_DISPLAY`), 66 (`AC_FRAGRANCE_WARNING`), 76 (welcome fragrance), and 88 (happy-egg fragrance) are not consumed by this actual FragranceModel subscription/read/write path.
+- Therefore the traced presenter/model path contains ordinary operational state only and no second display/availability capability input.
+- Base `bottom_layout.xml` still declares `fragrance_btn` as `GONE`, and inspected `view/b.java` / binding code has no proven path making it visible.
 
 ## Next step
 
-Trace only the concrete `IFragranceModel` implementation returned by factory `b.a.b.a.c.e.b()`:
+Perform one deterministic UI/resource activation audit:
 
-1. inspect complete `b/a/b/a/c/e.java` and determine the exact class/object returned by `e.b()`;
-2. decompile/dump that exact model implementation and any directly referenced fragrance-specific helper/proxy only;
-3. map interface methods `r/m0/F0/E/H/f0/h/z/P`, listener registration `x0/o`, lifecycle `a/b/c`, and writes `B0/l/B` to concrete CarInfo/HVAC/VDBus properties/events;
-4. record every numeric property/event ID and callback registration used by the model;
-5. distinguish operational states (power/type/level/remain/position) from any availability/display/warning/capability state;
-6. only if a concrete extra predicate/state is found, trace that one producer into CarInfo/VDBus/native backend.
+1. enumerate every exact call-site of `OfflineConfigManager.f()` / Fragrance existence predicate;
+2. enumerate every source reference to `fragranceBtn` / `fragrance_btn`, especially any `setVisibility`, inflation, include, binding-adapter, or resource-selection path;
+3. decode/list every qualified `res/layout*` resource containing `fragrance_btn` and record its initial visibility;
+4. identify which concrete bottom layout resource is inflated for the T1J path;
+5. scan RU02 system/product/system_ext/vendor overlay APK manifests/resources for overlays targeting `com.desaysv.svhvac` or overriding the relevant layout/resource;
+6. decide from evidence whether activation is in-APK UI construction or an external resource overlay.
 
-Do not continue grepping `x0`, do not preselect `AC_FRAGRANCE_DISPLAY` as root cause, and do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
+Do not return to broad backend ID guessing, VehicleDevice transport, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
 
-When the vehicle becomes available again, reconcile live HVAC/CarInfo hashes with local artifacts before runtime tests that depend on exact APK identity.
+When the vehicle becomes available again, reconcile live HVAC/CarInfo hashes and query active overlays as a runtime cross-check.
