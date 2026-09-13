@@ -26,22 +26,27 @@ The config update path is mapped:
 6. `VDServiceDef` names the event source as `com.desaysv.ivi.vds.vdev.service.VehicleDevice` in package `com.desaysv.ivi.vds.vdev`.
 7. `VehicleService` is a separate HAL-facing service: `com.desaysv.ivi.vds.vehicle.service.VehicleService` under `android.hardware.automotive.vehicle@2.0-service`.
 
-The RU02 application inventory does not expose a top-level app directory literally named `VehicleDevice` or `vdev`. The two strongest candidates were inspected and their exact APKs are now confirmed to exist:
+Two strongest APK candidates have been extracted and fingerprinted:
 
-- `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk` — `4393739` bytes;
-- `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk` — `1877064` bytes.
+- `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk`
+  - SHA-256 `2a172f9aa1a447df8ad32a733680843bfb5f131ca5c7db8dcbc507db49dd7282`
+  - package `com.desaysv.ivi.vds.projection`
+  - manifest services: `ProjectionService`, `DesaySVProjectManagerService`
+- `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk`
+  - SHA-256 `52b3d5f63922031be273746cc3ac553c19a2d49a9508028aa81305c9988c0e1d`
+  - package `com.desaysv.ivi.vds.carstate`
+  - manifest service: `CarStateService`
 
-The previous recursive `rdump` attempt produced no APK output; use exact-file `debugfs dump` against these confirmed paths instead.
+Both DEXes contain the raw string `com.desaysv.ivi.vds.vdev.service.VehicleDevice`, but neither manifest declares that service. Therefore raw string search is insufficient to identify the implementation APK. `DesaySVProjectService` also contains shared VDBus symbols (`VDEventVehicleDevice`, `VDVDeviceConfigStore`, `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`), while `SVVDSCarStateService` contains a `VehicleDeviceManager` client class.
 
 ## Next step
 
-1. Extract exactly the two APK files above with `debugfs dump`.
-2. Record SHA-256 and package/version/manifest metadata.
-3. Search both APKs for `com.desaysv.ivi.vds.vdev`, `VehicleDevice`, event `918905`, `VDVDeviceConfigStore`, and `vehicle.persist.project.ext.configs`.
-4. Decompile only the APK that actually contains the VehicleDevice implementation.
-5. Trace production of event `918905` and any project/market/telematics/capability filtering.
-6. Follow into `VehicleService` only if direct references from VehicleDevice require it.
-7. Do not broaden into unrelated framework jars until this service path is exhausted.
+1. Decompile these two extracted APKs read-only with JADX.
+2. Check for the exact source path `sources/com/desaysv/ivi/vds/vdev/service/VehicleDevice.java` and for an actual `class VehicleDevice` definition.
+3. If found in one APK, trace event `918905` production and the origin/filtering of `vehicle.persist.project.ext.configs` there.
+4. If absent in both, do not infer from raw strings; broaden localization across the remaining RU02 APKs using exact class-definition/source-path search.
+5. Follow into `VehicleService` only if the actual VehicleDevice implementation references it.
+6. Do not broaden into unrelated framework jars until VehicleDevice ownership is resolved.
 
 When the vehicle is available again, pull/hash live CarInfo/HVAC APKs and reconcile labels before any package replacement experiment.
 
