@@ -68,7 +68,17 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - `VDServiceDef` identifies the event source as system service package `com.desaysv.ivi.vds.vdev`, class `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
 - `VDServiceDef` separately identifies the vehicle HAL-facing service as `com.desaysv.ivi.vds.vehicle.service.VehicleService` under package `android.hardware.automotive.vehicle@2.0-service`.
 - `VDEventVehicleDevice` defines `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE = 918905` and `PROJECT_RESERVE_CONFIGS = 917510`.
-- Therefore the RU02 persistent-config update path is now mapped at framework level as: VehicleDevice event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC predicate.
+- Therefore the RU02 persistent-config update path is mapped at framework level as: VehicleDevice event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC predicate.
+
+### VehicleDevice package localization
+
+- Two strongest APK candidates were extracted read-only by exact path:
+  - `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk` — 4393739 bytes, SHA-256 `2a172f9aa1a447df8ad32a733680843bfb5f131ca5c7db8dcbc507db49dd7282`, package `com.desaysv.ivi.vds.projection`, versionCode 30, versionName `11`.
+  - `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk` — 1877064 bytes, SHA-256 `52b3d5f63922031be273746cc3ac553c19a2d49a9508028aa81305c9988c0e1d`, package `com.desaysv.ivi.vds.carstate`, versionCode 1, versionName `carstate_20230416.1650`.
+- `DesaySVProjectService.apk` manifest declares `com.desaysv.ivi.vds.projection.service.ProjectionService` and `com.desaysv.ivi.vds.projection.DesaySVProjectManagerService`; it does NOT declare `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
+- `SVVDSCarStateService.apk` manifest declares `com.desaysv.ivi.vds.carstate.service.CarStateService`; it does NOT declare `VehicleDevice`.
+- Both APK DEXes contain strings for package `com.desaysv.ivi.vds.vdev` and class `com.desaysv.ivi.vds.vdev.service.VehicleDevice`, but string presence alone proves only a reference, not that the implementation class is defined in the APK.
+- `DesaySVProjectService.apk` additionally contains VDBus symbol strings such as `VDEventVehicleDevice`, `VDVDeviceConfigStore`, and `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`; `SVVDSCarStateService.apk` contains a `VehicleDeviceManager` client class. Exact class ownership still needs source-tree verification.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -81,6 +91,7 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - RU06 -> RU02 HVAC DEX/manifest/resource differences contain the missing-Fragrance gate.
 - `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
 - `CarConfigUtil` contains a separate Fragrance-specific suppression after `getConfig(50)`; current RU02 code shows `getConfig()` delegates directly to `EolConfig`.
+- DEX string presence of `com.desaysv.ivi.vds.vdev.service.VehicleDevice` is sufficient to identify the APK that implements VehicleDevice. Exact class definition must be verified.
 
 ## Current open question
 
@@ -88,7 +99,7 @@ Which RU02 backend condition inside or upstream of `VehicleDevice` / `VehicleSer
 
 ## Next step
 
-Locate and extract the actual RU02 package implementing `com.desaysv.ivi.vds.vdev.service.VehicleDevice` from the available firmware images, then decompile that package read-only and trace production of event `918905` / `VDVDeviceConfigStore` plus any Fragrance/capability/project/market/telematics gates. Expand to `VehicleService` only where the VehicleDevice reference graph requires it.
+Decompile the two extracted candidate APKs and determine whether either actually defines `sources/com/desaysv/ivi/vds/vdev/service/VehicleDevice.java`. If one does, trace event `918905` production there. If neither does, broaden package localization to the remaining RU02 APKs using exact class-definition search rather than raw string hits.
 
 When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile local artifact labels.
 
