@@ -5,29 +5,27 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 ## PROVEN
 
 - Bench is Jetour T2 / T1J, official RU dealer vehicle, Desay SV 8155, firmware 00.00.02, telematics present.
-- Engineering Fragrance toggle changes `config1` byte12 between `0x85` and `0xC5`; delta `0x40` = bit6.
-- `ID_CAR_CONFIG_FRAGRANCE = 50`; current RU02 `EolConfig` maps it from `vehicle.persist.project.ext.configs`.
-- Current HVAC startup has been observed with byte12=`C5`.
-- Current RU02-generation HVAC Fragrance predicate is `getConfig(50)==1 && !isT1H_PHEV()`.
-- VehicleDevice/event-918905 transport is statically closed end-to-end to `CarConfigUtil -> EolConfig -> config50`.
-- Current RU02-generation T1J `bottom_layout.xml` declares `fragrance_btn` `GONE`; its `BottomLayoutBindingImpl` has no Fragrance visibility setter and no Fragrance predicate call.
-- Current T1J `view/b` uses the Fragrance predicate only for FragranceDialog initialization.
-- No scanned static RU02 overlay targets `com.desaysv.svhvac`.
-- Therefore the current RU02-generation T1J path has no proven `config50 -> fragrance_btn VISIBLE` path.
-- Exact signed RU05 HVAC artifact is `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
-- RU05 T1J `bottom_layout.xml` does not initially hide `fragrance_btn`.
-- RU05 `BottomLayoutBindingImpl` explicitly controls `fragranceBtn.setVisibility(...)` from `OfflineConfigManager.e()`.
-- RU05 `OfflineConfigManager.e()` is exactly `isFragranceExist` and computes only `CarConfigUtil.getConfig(50)==1`; no secondary gate exists.
-- RU05 APK itself contains `CarConfigUtil`, `EolConfig`, `ReserveConfigConstants`, related carconfig classes, VDBus classes, and `VDEventVehicleDevice`.
-- RU05 packaged `CarConfigUtil.getConfig(int)` directly calls packaged `EolConfig.getJetourEolConfig(int)`.
-- RU05 packaged config stack contains `vehicle.persist.project.ext.configs`, `...configs2`, `...configs3`, combo config, and callback handling for project vehicle-property config updates.
-- RU05 packaged `VDEventVehicleDevice` defines `PROJECT_RESERVE_CONFIGS=0xe0006` and `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE=0xe0579` (918905).
+- Engineering Fragrance toggle changes config1 byte12 `0x85 -> 0xC5`; delta `0x40` = bit6.
+- Current RU02 Fragrance config is ID50 from `vehicle.persist.project.ext.configs`; current startup has been observed with byte12=`C5`.
+- Current RU02-generation T1J `bottom_layout.xml` sets `fragrance_btn` `GONE`; current T1J generated binding has no Fragrance visibility setter/predicate, and no scanned static RU02 HVAC RRO compensates.
+- Exact signed RU05 HVAC is `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
+- RU05 has a valid T1J Fragrance visibility path: `OfflineConfigManager.e()` controls `fragranceBtn.setVisibility(true?0:4)`.
+- RU05 `e()` is exactly `isFragranceExist` and computes only `CarConfigUtil.getConfig(50)==1`.
+- RU05 packages its own `CarConfigUtil`, `EolConfig`, `ReserveConfigConstants`, VDBus and VehicleDevice event classes.
+- RU05 `CarConfigUtil.getConfig(int)` directly delegates to packaged `EolConfig.getJetourEolConfig(int)`.
+- RU05 `getJetourEolConfig(50)` is exactly `(mCarConfig1[12] >> 6) & 1`, identical to the current RU02 Fragrance bit mapping.
+- RU05 `EolConfig.loadConfig()` requests `vehicle.persist.project.ext.configs` through VDBus event `0xe0006` / `PROJECT_RESERVE_CONFIGS` using `VDBus.getOnce()` and parses response field `value` into `mCarConfig1`.
+- If the `getOnce()` response or payload is absent, RU05 substitutes an empty string before `stringToByte`, allowing config50 to resolve as default/0.
+- RU05 `CarConfigUtil.init(Context)` has two startup branches: when VehicleDevice is already connected it subscribes to `0xe0579` and immediately calls `EolConfig.loadConfig()`; otherwise it calls `bindService(VEHICLE_DEVICE)` and returns.
+- RU05 `onVDConnected(VEHICLE_DEVICE)` later subscribes/registers and calls `EolConfig.loadConfig()`.
+- RU05 event `0xe0579` later updates `vehicle.persist.project.ext.configs` through `EolConfig.updateConfig(...)`.
 
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
-- RU05-on-RU02 failure is a separate older config-stack initialization/class-resolution issue, not the same UI defect.
-- Because RU05 carries its own complete carconfig/VDBus implementation, the next likely discriminator is RU05 `EolConfig` decoding and startup-load timing rather than another APK component replacement.
+- The failed signed RU05-on-RU02 A/B test is now most plausibly an initialization/timing issue rather than an ID/bit/property mismatch.
+- Concrete candidate sequence: first RU05 binding evaluation occurs before asynchronous VehicleDevice connection/load completes; `mCarConfig1` is empty so `getConfig(50)==0`; binding sets Fragrance `INVISIBLE`; correct config arrives later but may not trigger a generated-binding re-evaluation.
+- If this one-shot-binding hypothesis is proven, a non-patching workaround may be possible by keeping the RU05 process alive until config load completes and then recreating/reinflating the HVAC UI without killing the process.
 
 ## DISPROVEN
 
@@ -45,17 +43,19 @@ Do not reopen without new contradictory evidence:
 - A scanned static RU02 HVAC overlay unhides the entry.
 - RU05 has the same T1J GONE/missing-binding defect.
 - RU05 uses another Fragrance config ID instead of 50.
+- RU05 uses a different config1 byte/bit for Fragrance; it also uses byte12 bit6.
 - RU05 adds a second T1H/PHEV/market/telematics/project gate after config50.
+- A RU05-vs-RU02 Fragrance mapping mismatch explains the old A/B failure.
 
 ## OPEN
 
-- Does RU05 `EolConfig.getJetourEolConfig(50)` map to config1 byte12 bit6 exactly like RU02?
-- How exactly does RU05 `EolConfig.loadConfig()` obtain/populate config1 at startup, and can timing/default data explain a false `getConfig(50)` on RU02?
-- Did runtime class loading use the embedded RU05 classes or a same-named parent/shared implementation? Only investigate if EolConfig semantics otherwise match.
-- Is any runtime/dynamic overlay active on the live vehicle? Pending vehicle return.
-- Which local HVAC/CarInfo artifacts are byte-exact with the live canonical vehicle? Pending vehicle return.
+- Is RU05 `OfflineConfigManager.e()` evaluated only during initial generated-binding dirty state, with no rebind trigger from later `EolConfig.updateConfig()`?
+- Where exactly is RU05 `CarConfigUtil.init(Context)` called relative to HVAC Activity/view creation?
+- Can RU05 process be prewarmed or HVAC UI/task recreated after config load, without process death, to expose the OEM Fragrance button via ADB only?
+- Did runtime class loading use the embedded RU05 config/VDBus classes or an identically named parent/shared implementation? Investigate only if lifecycle/binding timing does not explain the behavior.
+- Runtime dynamic overlay and exact live APK hash reconciliation remain pending vehicle return.
 
 ## Constraints
 
 - No Desay/platform private signing key is available; modified system APK deployment is not a valid primary route.
-- Prefer read-only firmware/runtime comparison before any write/injection experiment.
+- Prefer read-only/static analysis and reversible runtime tests before writes or component replacement.
