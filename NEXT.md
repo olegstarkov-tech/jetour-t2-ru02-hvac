@@ -15,23 +15,31 @@ The focused CarInfo RU06 vs RU02-labeled source diff is complete:
 - the normalized JADX WARN/ERROR reports are identical as 662-line multisets, including the same AndroidX `DiffUtil.java:107` RegionMakerVisitor failure;
 - therefore there is currently no evidence of a functional application-code difference in CarInfo between these two artifacts.
 
-However a more important artifact-identity inconsistency is now open: the earlier live vehicle `dumpsys package com.desaysv.ivi.vds.carinfo` versionName (`Chery-8155_11_e5fc2d4_2025-09-26_2509261457_R`) matches the local artifact labeled RU06, whereas the local artifact labeled RU02-TEL-2026 decompiles with versionName `Chery-8155_11_8f9dc0d_2026-04-10_2604101647_R`.
+The focused HVAC RU06 vs RU02-labeled generated-source diff is also complete:
 
-Immediate read-only discriminator:
+- exactly one generated Java file differs: `com/desaysv/svhvac/view/b.java`;
+- the only shown Java-code delta is `K1(boolean)`;
+- RU02-labeled code adds `com.desaysv.svhvac.h.a.a().h()` as a guard around the existing `ionAnimation` update block;
+- the existing ion-animation calls themselves are unchanged;
+- both JADX runs process 1449 classes and report 22 errors, but the captured console logs contain only the counts, so the individual error sets have not been compared.
 
-1. pull the live `com.desaysv.ivi.vds.carinfo` APK from the canonical T1J RU02 vehicle;
-2. calculate its SHA-256 and capture live `versionName/versionCode`;
-3. compare against the local RU06 and RU02-TEL-2026 CarInfo hashes;
-4. correct artifact labels if needed;
-5. only then perform the focused HVAC source diff using the artifact that is proven to correspond to the live RU02 stack.
+The canonical vehicle is temporarily unavailable for about six days. This defers live APK hash identity but does not block offline analysis.
 
-After live identity is resolved, continue with changed HVAC classes first; if the HVAC code delta is only build metadata too, pivot directly to system/framework/shared-library resolution (`vdbus_extra.jar`, VehicleDevice, VehicleService) instead of further APK replacement.
+Immediate read-only offline discriminator:
+
+1. identify the implementation and meaning of `com.desaysv.svhvac.h.a.a().h()` in RU06 and RU02-labeled HVAC;
+2. enumerate all call sites to that helper and determine whether it is ion/air-quality-specific or a broader feature/capability gate;
+3. verify the `K1(boolean)` delta directly at smali/DEX level rather than relying only on JADX;
+4. if unrelated to Fragrance, decode/diff the HVAC AndroidManifest and `resources.arsc` changes;
+5. if those also do not explain Fragrance, pivot to system/framework/backend comparison (`vdbus_extra.jar`, VehicleDevice, VehicleService and related persistent config/event path) using the available firmware payloads.
+
+Artifact identity remains open: earlier live `dumpsys` CarInfo versionName matches the local artifact currently labeled RU06, not the RU02-TEL-2026-labeled artifact. When the vehicle becomes available, pull/hash the live CarInfo and HVAC APKs and reconcile labels before any package replacement experiment.
 
 ## Guardrails
 
 - Canonical bench: T1J RU dealer 00.00.02 with telematics.
 - No blind VDBus/property writes.
 - No unsigned system APK patch path.
-- No package replacement until the static/live identity is established.
+- No package replacement until a concrete static/runtime hypothesis exists.
 - Do not import D08/00.00.08 conclusions as facts.
 - Do not reopen DISPROVEN hypotheses without new evidence.
