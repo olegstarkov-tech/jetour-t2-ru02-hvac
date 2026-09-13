@@ -41,11 +41,17 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - Therefore `blr` at `0x7bec` is definitively `VehicleBusStub::publish(event)`.
 - PROVEN static transport chain: `VehicleHal(key,value) -> VehicleDeviceVDS::onVehiclePropertyConfigChange(key,value) -> event 918905 -> two-string key/value bundle -> VehicleBusStub::publish -> framework event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
 - No country/project/market/telematics filter has been found in this traced transport path.
+- Current static HVAC audit used local `SVHvac_RU02_2026.apk` with SHA-256 `2819ccafd364fb46bf06c492932fdc6fb4768c75705d243ef66b0c6518ce765a`, matching the established local RU02-labeled artifact hash.
+- In the generated runtime-input audit, no semantic `FragranceDisplay` / `FragranceWarning` reference was found and the explicit numeric candidate scan for IDs 58/59/60/61/62/64/66/71/76/88 returned no direct cases. This is a result of the audit, not proof that the backend states are unused.
+- `HvacContentView` Fragrance power callback changes `fragranceBtn` selected state via `setSelected(z)`; it does not make the button visible.
+- `FragranceDialog` callbacks visible in the audit handle Fragrance power, level, type, remaining amount and position/installed-state behavior; no direct main-button visibility change was identified there.
+- The Fragrance dialog and HVAC activity/view use obfuscated presenter type `b.a.d.a.b.x0`, explicitly labeled `mFragrancePresenter` by Kotlin/JADX metadata/usages. That presenter is the next concrete static target.
 
 ## LIKELY
 
 - Global bundle-key strings `0x135a0` and `0x135b8` correspond to the framework bean's property-key and property-value field names. Their values are PROVEN; only literal key-name text remains unknown.
 - The remaining Fragrance blocker is outside the now-closed project-config transport path and is more likely another capability/runtime state input consumed by HVAC/framework/UI.
+- Any separate display/availability predicate, if it exists, is more likely to be discoverable in `b.a.d.a.b.x0` FragrancePresenter or its proxy/callback registrations than in the already inspected view/binding code.
 
 ## DISPROVEN
 
@@ -68,12 +74,14 @@ Do not reopen without new contradictory evidence:
 - `0x7c24` is a second independent publication implementation; mini-debug proves it is only a non-virtual thunk to `0x7b28`.
 - The traced VehicleDevice callback/publication bridge visibly applies a country/project/market/telematics filter before publishing the project config pair.
 - Failure of project-config/event-918905 transport is the working explanation for hidden Fragrance despite current evidence showing config50=1 at HVAC startup.
+- `AC_FRAGRANCE_DISPLAY` is already proven to be the missing visibility gate. The current audit found no concrete consumer path for that conclusion.
 
 ## OPEN
 
 - Which actual RU02 condition prevents Fragrance from becoming available despite config50=1?
-- What Fragrance-specific runtime/capability input beyond config50 is consumed by HVAC or its backend?
-- Do `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, fragrance type/level/state IDs, or another event participate in visibility/activation rather than simple control state?
+- What does `b.a.d.a.b.x0` FragrancePresenter subscribe to/read/write?
+- Does x0 expose an additional availability/display state separate from power/type/level/remain/position state?
+- Do `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, fragrance type/level/state IDs, or another event participate in visibility/activation once x0 is decoded?
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 - Literal initialized names of bundle-key globals `0x135a0` / `0x135b8` remain unresolved, but this is documentation-only unless contradictory evidence appears.
