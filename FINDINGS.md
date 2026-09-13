@@ -1,36 +1,39 @@
 # RU02-HVAC FINDINGS
 
-Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
+Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 
 ## PROVEN
 
 - Bench is Jetour T2 / T1J, official RU dealer vehicle, Desay SV 8155, firmware 00.00.02, telematics present.
-- Engineering Fragrance toggle changes config1 byte12 `0x85 -> 0xC5`; delta `0x40` = bit6.
+- Engineering Fragrance toggle changes config1 byte12 between `0x85` and `0xC5`; delta `0x40` = bit6.
 - Current RU02 Fragrance config is ID50 from `vehicle.persist.project.ext.configs`; current startup has been observed with byte12=`C5`.
 - Current RU02-generation T1J `bottom_layout.xml` sets `fragrance_btn` `GONE`; current T1J generated binding has no Fragrance visibility setter/predicate, and no scanned static RU02 HVAC RRO compensates.
 - Exact signed RU05 HVAC is `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
 - RU05 has a valid T1J Fragrance visibility path: `OfflineConfigManager.e()` controls `fragranceBtn.setVisibility(true?0:4)`.
 - RU05 `e()` is exactly `isFragranceExist` and computes only `CarConfigUtil.getConfig(50)==1`.
 - RU05 packages its own `CarConfigUtil`, `EolConfig`, `ReserveConfigConstants`, VDBus and VehicleDevice event classes.
-- RU05 `CarConfigUtil.getConfig(int)` directly delegates to packaged `EolConfig.getJetourEolConfig(int)`.
 - RU05 `getJetourEolConfig(50)` is exactly `(mCarConfig1[12] >> 6) & 1`, identical to current RU02.
-- RU05 `EolConfig.loadConfig()` requests `vehicle.persist.project.ext.configs` through VDBus `getOnce(0xe0006)` and stores parsed response `value` into `mCarConfig1`; absent response/payload falls back to empty string.
-- RU05 `CarConfigUtil.init(Context)` loads config immediately only if VehicleDevice is already connected; otherwise it starts `bindService()` and returns, with load deferred to `onVDConnected()`.
-- Event `0xe0579` later updates `vehicle.persist.project.ext.configs` through `EolConfig.updateConfig(...)`.
-- RU05 `HvacApplication.onCreate()` invokes `CarConfigUtil.init()` before later HVAC view initialization including `view/b.I0(context)`.
-- RU05 manifest declares `HvacApplication` and exported `HvacService`, but no normal HVAC Activity.
-- RU05 `BottomLayoutBindingImpl.onFieldChange()` always returns `false`.
-- `BottomLayoutBindingImpl` does not register `EolConfig`/`CarConfigUtil` as observable dependencies.
-- `EolConfig.updateConfig()` does not directly set BottomLayout dirty flags or request a rebind.
-- RU05 Fragrance predicate is reevaluated only when BottomLayout binding itself is invalidated/reassigned, e.g. `invalidateAll()` or `setHvacContentView()`.
-- Therefore a late config50 update does not automatically refresh existing RU05 Fragrance visibility.
+- RU05 `EolConfig.loadConfig()` requests `vehicle.persist.project.ext.configs` through VDBus `getOnce(0xe0006)`; absent response/payload can yield empty/default config.
+- RU05 `CarConfigUtil.init(Context)` loads immediately only if VehicleDevice is already connected; otherwise load is deferred to `onVDConnected()`.
+- Event `0xe0579` can later update `mCarConfig1` through `EolConfig.updateConfig()`.
+- `HvacApplication.onCreate()` invokes `CarConfigUtil.init()` before later `view/b.I0(context)` initialization.
+- RU05 manifest declares exported `HvacService` and no normal HVAC Activity.
+- RU05 `BottomLayoutBindingImpl.onFieldChange()` always returns false; EolConfig/CarConfig are not observable binding dependencies.
+- Late `EolConfig.updateConfig()` does not automatically recompute existing Fragrance visibility.
+- RU05 `view/b.t1()` is a stock same-process main-view reinflate primitive: it removes the old main view, inflates a new `HvacMainViewBinding`, assigns the new `bottomLayout`, and adds the new root back into the existing HVAC root.
+- Therefore a newly executed `t1()` creates a fresh BottomLayout binding that can reevaluate the RU05 Fragrance predicate without process death.
+- `view/b.I0(context)` calls `L0()` during initialization; the traced path shows `L0()` calling `t1()`.
+- Exported `HvacService.onStartCommand()` accepts string extra `type` and dispatches stock commands including `OPEN_PANEL`, `CLOSE_PANEL`, `CONTROL_PANEL`, `SSS`, `HHH`, and VR open/close-fragment commands.
+- Current trace does not prove these service commands directly invoke `t1()`; they mainly operate on the existing singleton `view/b` state.
+- `HvacApplication` contains private `b()` with log text `onConfigurationChanged destoryAndReshow isHvacShow=` and the configuration-change path calls this method after additional UI/config handling.
+- The report did not capture the middle of private `b()`, so exact destroy/reinitialize calls inside it remain unresolved.
 
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
-- Failed signed RU05-on-RU02 A/B test is now plausibly explained by stale initial binding state: first evaluation before async VehicleDevice/config load gives false/INVISIBLE; correct config arrives later; existing binding is not automatically reevaluated.
-- This live sequence is not yet proven because `CarConfigUtil.init()` runs before view initialization and the VehicleDevice callback may have completed before first binding evaluation.
-- If stock RU05 view/binding can be recreated after config load without process death, an ADB-assisted workaround may be possible without Desay signing keys.
+- Failed signed RU05-on-RU02 A/B test is plausibly explained by stale initial binding: first evaluation before async config load gives false/INVISIBLE; correct config arrives later; existing binding is not automatically reevaluated.
+- Because RU05 contains a stock same-process `t1()` reinflate, this stale state is potentially recoverable without APK patching.
+- The strongest no-patch candidate is a stock `HvacApplication` configuration-change destroy/re-show path that eventually reaches a fresh main/bottom binding after config50 is already loaded.
 
 ## DISPROVEN
 
@@ -49,13 +52,15 @@ Do not reopen without new contradictory evidence:
 - RU05 has the same T1J GONE/missing-binding defect.
 - RU05 uses another Fragrance config ID or another byte/bit.
 - RU05 adds a second T1H/PHEV/market/telematics/project gate after config50.
-- A late RU05 `EolConfig.updateConfig()` automatically refreshes BottomLayout via observable DataBinding registration.
+- A late RU05 config update automatically refreshes BottomLayout via observable DataBinding.
+- `OPEN_PANEL` is already proven to be the BottomLayout-reinflate trigger.
 
 ## OPEN
 
-- What exact RU05 service/view lifecycle creates/recreates BottomLayoutBinding?
-- Can an existing stock/exported path trigger BottomLayout recreation or `setHvacContentView()` after config load while preserving the process/static `mCarConfig1`?
-- Did runtime class loading use the embedded RU05 config/VDBus classes or a same-named parent/shared implementation? Investigate only if lifecycle timing fails to explain the live test.
+- What exactly does `HvacApplication.b()` do in the configuration-change destroy/re-show path?
+- Does that path keep the process alive and reach `view/b.I0 -> L0 -> t1()` or another equivalent fresh BottomLayout creation?
+- Which benign reversible Android configuration change can safely trigger that path through ADB on the live RU05 process?
+- Did runtime class loading use embedded RU05 config/VDBus classes or a same-named parent/shared implementation? Investigate only if lifecycle timing fails.
 - Runtime dynamic overlay and exact live APK hash reconciliation remain pending vehicle return.
 
 ## Constraints
