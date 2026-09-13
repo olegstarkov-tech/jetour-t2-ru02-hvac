@@ -17,7 +17,7 @@ Determine why OEM Fragrance remains hidden despite enabled vehicle config and id
 ### Config and transport
 
 - Engineering Fragrance changes config1 byte12 `0x85 -> 0xC5`; bit6 is Fragrance.
-- `ID_CAR_CONFIG_FRAGRANCE = 50`; `EolConfig` maps it from `vehicle.persist.project.ext.configs`.
+- `ID_CAR_CONFIG_FRAGRANCE = 50`; current RU02 `EolConfig` maps it from `vehicle.persist.project.ext.configs`.
 - Current HVAC startup has been observed with byte12=`C5`.
 - Current RU02-generation HVAC `OfflineConfigManager.f()` is exactly `getConfig(50)==1 && !isT1H_PHEV()`; canonical car is T1J.
 - Native VehicleDevice/event-918905 transport is closed end-to-end and contains no observed country/project/market/telematics suppression.
@@ -31,58 +31,44 @@ Static audit artifact: `SVHvac_RU02_2026.apk`, SHA-256 `2819ccafd364fb46bf06c492
 - FragranceModel uses only module `327690`, IDs `{58,59,60,61,62,71,92,93,94}`: type1/2/3, power, level, position/channel, remain1/2/3.
 - Initial reads use the same set; writes are only 61/62/71.
 - IDs 64/66/76/88 are not in the real FragranceModel subscription/read/write path.
-- Therefore presenter/model contains ordinary operational state only, not a second display/availability gate.
 
 ### RU02-generation T1J UI visibility path — CLOSED inside current APK
 
-- T1J `res/layout/bottom_layout.xml` declares `fragrance_btn` with `android:visibility="gone"`.
-- Exact `BottomLayoutBindingImpl.executeBindings()` inspection proves T1J `fragranceBtn` receives an `OnClickListener` but has **no `setVisibility()` call** in the generated binding.
-- T1J `BottomLayoutBindingImpl` has no `OfflineConfigManager.f()` call-site.
-- T1J `view/b.smali` does call `OfflineConfigManager.f()`, but the inspected call gates FragranceDialog initialization only; it does not change main-button visibility.
-- Existing Fragrance callbacks change selected/operational state, not main-button visibility.
-- Therefore, within the decoded T1J base-layout + generated-binding + inspected view path of this APK, there is no `config50 -> fragrance_btn VISIBLE` activation path.
-
-### T1H control contrast only
-
-- T1H is not the canonical vehicle branch.
-- `t1h_bottom_layout_new.xml` contains `fragrance_btn` without initial `GONE`.
-- `T1hBottomLayoutNewBindingImpl` does call current-generation `OfflineConfigManager.f()` and contains an explicit `fragranceBtn.setVisibility(...)` operation.
-- Generated T1H logic is not a simple transferable activation formula for T1J; nearby generated branches consume unrelated predicates too. Current-generation `OfflineConfigManager.c()` is config104 / `isBehindSeatHeatExist`.
-
-### Static RU02 overlay scan — CLOSED
-
-Read-only scan used available exact RU02 partition images: `system.img`, `product.img`, `system_ext.img`, `vendor.img`.
-
-- Standard overlay and overlay-config directories were extracted/scanned.
-- Exactly **2 overlay APKs** were found in scope.
-- Both manifests have `android:targetPackage="android"`.
-- No static overlay APK targeting `com.desaysv.svhvac` was found.
-- Therefore no scanned RU02 static RRO overrides HVAC `bottom_layout`, `fragrance_btn`, or its visibility.
-
-A runtime/dynamic overlay outside these static partition images remains a live cross-check only until the vehicle returns.
+- T1J `res/layout/bottom_layout.xml` declares `fragrance_btn` `GONE`.
+- T1J `BottomLayoutBindingImpl.executeBindings()` assigns the Fragrance click listener but contains no `fragranceBtn.setVisibility(...)` and no `OfflineConfigManager.f()` call-site.
+- T1J `view/b` uses `OfflineConfigManager.f()` to initialize FragranceDialog, not to expose the main button.
+- No scanned static RU02 overlay targets `com.desaysv.svhvac`.
+- Therefore the current RU02-generation T1J APK has no proven in-APK or static-RRO `config50 -> fragrance_btn VISIBLE` path.
 
 ### RU05 T1J UI + predicate comparison — CLOSED
 
-Exact old signed HVAC artifact: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
+Exact signed old HVAC: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
 
-- RU05 T1J `res/layout/bottom_layout.xml` contains `fragrance_btn` **without** an initial `GONE` visibility.
-- RU05 `BottomLayoutBindingImpl.executeBindings()` contains an explicit `fragranceBtn.setVisibility(...)`.
-- Exact register flow in the generated binding is:
-  - `OfflineConfigManager.e()` result -> `v14`;
-  - `v14 ? 0 : 4` -> `v13`;
-  - `fragranceBtn.setVisibility(v13)`.
-- Thus RU05 has a real T1J feature-predicate-driven Fragrance visibility path: predicate true -> `VISIBLE(0)`, false -> `INVISIBLE(4)`.
-- Exact RU05 `OfflineConfigManager` method/log mapping from smali proves `e()` = `isFragranceExist` and `f()` = `isFrontWindHeatExist`.
-- Exact RU05 `e()` body is now proven:
-  - calls `CarConfigUtil.getDefault()`;
-  - loads constant `0x32` = decimal 50;
-  - calls `CarConfigUtil.getConfig(50)`;
-  - returns true iff result equals `1`;
-  - logs `isFragranceExist = ...`;
-  - contains **no second condition** (no T1H/PHEV/market/telematics/project gate).
-- Therefore RU05 T1J visibility formula is exactly `CarConfigUtil.getConfig(50)==1 -> fragranceBtn VISIBLE`.
+- RU05 T1J `bottom_layout.xml` has `fragrance_btn` without initial `GONE`.
+- RU05 `BottomLayoutBindingImpl` explicitly applies `fragranceBtn.setVisibility(...)`.
+- Exact flow is `OfflineConfigManager.e() -> (true ? VISIBLE(0) : INVISIBLE(4)) -> fragranceBtn`.
+- RU05 `OfflineConfigManager.e()` is exactly `isFragranceExist`.
+- Exact `e()` body calls `CarConfigUtil.getConfig(0x32)` = `getConfig(50)`, compares only with `1`, logs, and returns; no second T1H/PHEV/market/telematics/project condition exists.
 
-The hypothesis that RU05 failed because it had the **same** T1J `GONE` + missing-binding omission as current RU02-generation HVAC is DISPROVEN.
+### RU05 embedded config stack — NEW PROVEN
+
+Static class-resolution/config-source audit of the exact RU05 APK proves:
+
+- RU05 APK itself contains `com/desaysv/ivi/extra/project/carconfig/CarConfigUtil.smali`.
+- RU05 APK itself contains `EolConfig.smali`, `ReserveConfigConstants.smali`, related carconfig classes, VDBus classes, and `VDEventVehicleDevice`.
+- RU05 `CarConfigUtil.getConfig(int)` directly calls its packaged `EolConfig.getJetourEolConfig(int)`.
+- RU05 embedded `EolConfig` contains and loads the same vehicle property keys, including `vehicle.persist.project.ext.configs`, `...configs2`, `...configs3`, and combo config.
+- RU05 `ReserveConfigConstants.KEY_CAR_CONFIG_1` is `vehicle.persist.project.ext.configs`.
+- RU05 packaged callback code contains `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE` and handles `vehicle.persist.project.ext.configs*` updates.
+- RU05 packaged `VDEventVehicleDevice` defines `PROJECT_RESERVE_CONFIGS = 0xe0006` and `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE = 0xe0579` (918905), matching the event family already traced in RU02.
+
+This substantially weakens the idea that RU05 failed merely because its Fragrance predicate transparently reused the newer RU02 `CarConfigUtil/EolConfig`: RU05 carries a complete older config/VDBus implementation inside its own APK.
+
+What is not yet proven from the quick report alone:
+
+- whether Android runtime class loading selected the embedded RU05 carconfig classes versus an identically named parent/shared implementation;
+- the exact RU05 `getJetourEolConfig(50)` bit mapping;
+- the exact RU05 `EolConfig.loadConfig()` behavior and timing on startup.
 
 ## DISPROVEN / closed without new evidence
 
@@ -93,37 +79,31 @@ The hypothesis that RU05 failed because it had the **same** T1J `GONE` + missing
 - `a2()` controls visibility.
 - Hidden gate in current CarConfigUtil, VehicleDevice/event-918905 transport, FragrancePresenter, or FragranceModel.
 - ID64 is already proven as the missing gate.
-- The current RU02-generation T1J `BottomLayoutBindingImpl` contains a hidden config50-to-fragrance visibility setter.
-- A scanned RU02 static overlay in system/product/system_ext/vendor targets `com.desaysv.svhvac` and fixes/unhides `fragrance_btn`.
-- RU05 T1J has the same `fragrance_btn=GONE` + missing visibility-binding omission as RU02-generation HVAC.
+- The current RU02-generation T1J binding contains a hidden config50-to-Fragrance visibility setter.
+- A scanned RU02 static HVAC-targeting overlay fixes/unhides `fragrance_btn`.
+- RU05 shares the same T1J `GONE` + missing-binding omission as RU02-generation HVAC.
 - RU05 uses another Fragrance config ID instead of 50.
-- RU05 Fragrance visibility has a second T1H/PHEV/market/telematics/project predicate after config50; exact `e()` smali contains none.
+- RU05 Fragrance visibility contains a second T1H/PHEV/market/telematics/project gate after config50.
 
 ## Leading explanation
 
-For the current RU02-generation HVAC, the strongest static explanation remains a **T1J UI implementation omission/regression**:
+For the current RU02-generation HVAC, the strongest static explanation remains a **T1J UI implementation omission/regression**.
 
-- Fragrance config50 is valid and reaches current HVAC;
-- Fragrance operational model/backend exists;
-- current T1J layout ships the entry as `GONE`;
-- current T1J generated binding never makes it visible;
-- no static RU02 HVAC-targeting RRO was found to compensate.
-
-However, this explanation does **not** explain the older signed RU05 A/B failure. RU05 has a valid T1J visibility path controlled solely by `CarConfigUtil.getConfig(50)==1`. Therefore the failed RU05-on-RU02 test points to a separate config/class-loading/framework compatibility question: the `CarConfigUtil/EolConfig` implementation actually used by RU05 on the RU02 system base apparently did not present config50 as `1` at binding evaluation time.
+The signed RU05 failure is now a separate compatibility/config-initialization question. Because RU05 has its own packaged CarConfig/EOL/VDBus stack and a correct visibility path, the highest-value discriminator is no longer broad class ownership; it is whether RU05 decodes config50 from the same byte/bit and whether its startup load/callback path actually populated that config before binding visibility was evaluated on the RU02 system base.
 
 ## Current open question
 
-Which `CarConfigUtil/EolConfig` implementation did RU05 actually resolve/use on the RU02 system base, how did that RU05-generation implementation obtain config1/config50, and why could it return a non-1 value while the current RU02 framework path sees byte12=`C5` / config50=1?
+Does RU05 `EolConfig.getJetourEolConfig(50)` map to config1 byte12 bit6 exactly like RU02, and does RU05 `EolConfig.loadConfig()` obtain `vehicle.persist.project.ext.configs` in a way that could yield empty/default/old data on RU02 at binding time?
 
 ## Next step
 
-One narrow static RU05 class-resolution/config-source audit:
+One narrow read-only RU05 EolConfig trace:
 
-1. inspect RU05 manifest for `uses-library`/shared-library declarations relevant to VDBus/carconfig;
-2. inspect the exact RU05 APK-embedded `CarConfigUtil` and `EolConfig` classes, especially `getConfig`, `init`, `loadConfig`, update/callback paths and property/event keys;
-3. compare only those paths with exact RU02 `/system/framework/vdbus_extra.jar`;
-4. determine whether RU05 would use its embedded implementation or a parent/shared system implementation, and identify the smallest plausible mismatch that can make config50 false.
+1. extract exact `getJetourEolConfig(I)I` case handling for ID 50;
+2. extract exact `loadConfig()` / static initialization around `vehicle.persist.project.ext.configs`;
+3. extract the corresponding `CarConfigUtil.init`/service-connected path that invokes load/update;
+4. only if those match RU02 semantically, investigate runtime class-loader precedence or initialization timing.
 
-When vehicle access returns, perform pending runtime cross-checks: live HVAC/CarInfo hashes and `cmd overlay list --user 0 com.desaysv.svhvac`.
+When vehicle access returns: reconcile live hashes and runtime overlay state; if still needed, log the RU05 predicate/config load directly.
 
-Do not return to broad backend-ID guessing, VehicleDevice transport, T1H activation assumptions, blind writes, or unsigned HVAC patching.
+Do not return to broad backend-ID guessing, VehicleDevice transport, T1H assumptions, blind writes, or unsigned HVAC patching.
