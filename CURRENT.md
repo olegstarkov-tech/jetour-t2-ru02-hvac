@@ -55,9 +55,9 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when the v
 20. The only generated-Java delta in that file is method `K1(boolean)`: RU02-labeled code wraps the existing `ionAnimation` update block in an additional guard `com.desaysv.svhvac.h.a.a().h()`. The actual ion-animation operations are otherwise unchanged (`setVisibilityAndRunOn`, `setDrawables(R.array.blow_mode_ion_array)`).
 21. `com.desaysv.svhvac.h.a` is `OfflineConfigManager`. The RU06 and RU02-labeled decompiled `OfflineConfigManager.java` files are byte-identical (SHA-256 `d4419f35e81def8fcd7739f927e46a115e366b32d0b54d1b3b0b42365fa047c1`).
 22. `OfflineConfigManager.h()` is definitively the ionizer-existence gate: it returns `CarConfigUtil.getDefault().getConfig(91) == 1` and logs `isIonExist`.
-23. `OfflineConfigManager.f()` remains the distinct Fragrance gate: `getConfig(50)==1 && !isT1H_PHEV()`. Therefore the sole generated-Java delta RU06 -> RU02 is on the ionizer animation path, not the Fragrance predicate.
+23. `OfflineConfigManager.f()` remains the distinct Fragrance gate: `getConfig(50)==1 && !isT1H_PHEV()`.
 24. The call sites reinforce this semantic classification: `h()` is used by `onIonClick`, logs `ion is no exist`, and by `isIonExistShow` UI logic together with PM2.5 support checks.
-25. Direct apktool/smali diff now confirms the same `K1(boolean)` delta independently of JADX: RU02 adds only `OfflineConfigManager.a().h()` followed by early `return-void` when false, before the unchanged `ionAnimation` block. The extracted `h()Z` smali itself has no RU06/RU02 diff. Therefore the only confirmed HVAC DEX behavior change between these two artifacts is ionizer/config91-specific and is not the Fragrance/config50 gate.
+25. Direct apktool/smali diff independently confirms the same `K1(boolean)` delta: RU02 adds only `OfflineConfigManager.a().h()` followed by early `return-void` when false, before the unchanged `ionAnimation` block. The extracted `h()Z` smali itself has no RU06/RU02 diff. Therefore the only confirmed HVAC DEX behavior change between these two artifacts is ionizer/config91-specific and is not the Fragrance/config50 gate.
 26. Both HVAC JADX runs processed the same 1449-class workload and reported `22` errors. The captured console logs provide only the error count, not per-error identities, so equality of the 22 error sets is not yet proven.
 27. CarInfo RU06 -> RU02-labeled artifact:
    - 593 entries are byte-identical;
@@ -71,10 +71,16 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when the v
    - RU06 artifact: `Chery-8155_11_e5fc2d4_2025-09-26_2509261457_R`
    - RU02-labeled artifact: `Chery-8155_11_8f9dc0d_2026-04-10_2604101647_R`
    `BUILD_TYPE`, `DEBUG` and `VERSION_CODE` are unchanged.
-31. The collected JADX WARN/ERROR reports for those two CarInfo decompiles contain the same 662 normalized lines as a multiset. The visible hard error is the same AndroidX `DiffUtil.java:107` `RegionMakerVisitor` failure in both. Therefore there is no RU02-unique decompiler failure hiding an application-class delta in the generated source-tree comparison.
+31. The collected JADX WARN/ERROR reports for those two CarInfo decompiles contain the same 662 normalized lines as a multiset. The visible hard error is the same AndroidX `DiffUtil.java:107` `RegionMakerVisitor` failure in both.
 32. An artifact-identity inconsistency is important: earlier live `dumpsys package com.desaysv.ivi.vds.carinfo` on the current vehicle reported versionName `Chery-8155_11_e5fc2d4_2025-09-26_2509261457_R`, which matches the artifact currently labeled RU06, not the artifact currently labeled `RU02_TEL_2026`. The live APK hash has not yet been compared, so do not assume the RU02-labeled CarInfo artifact is the byte-exact APK currently installed on the canonical car.
 33. CarInfo RU05 -> RU06 changes materially in DEX size (`4926660` -> `4210872`), reinforcing the RU05 -> RU06 generation boundary.
 34. Quick DEX string scan shows RU05 HVAC and RU05 CarInfo embed/expose many VDBus-extra/carconfig implementation symbols and constants (`VehicleDevice`, `VehicleService`, `EolConfig`, `CarConfigUtil`, `ID_CAR_CONFIG_FRAGRANCE`, multiple `ID_AC_FRAGRANCE*`, Binder interface classes). RU06/RU02-generation artifacts mainly expose client references. This proves a packaging/architecture generation change; it does NOT yet prove Fragrance root cause.
+35. Decoded `AndroidManifest.xml` comparison for RU06 vs RU02-labeled HVAC is semantically identical: normalized manifest diff is empty.
+36. Decoded `resources.arsc` comparison yields only string/localization deltas: 13 differing common `strings.xml` files and one RU02-only `values-ms-rMY/strings.xml`.
+37. No decoded layout, bool, integer, style, id, array, drawable, alias or visibility resource differs between RU06 and RU02-labeled HVAC.
+38. The 14 decoded resource deltas are localization maintenance: additions/changes for French, Kazakh, Uzbek, Thai and other locales, Malay locale relocation/retargeting, and small wording fixes in several languages.
+39. Fragrance-related resource differences are text-only. The default English `fragrance_too_little_tips` fixes `fragnance` -> `fragrance`; Thai/Malay/French/Kazakh/Uzbek differences are translation/locale changes. Russian Fragrance strings are unchanged.
+40. Therefore the observed RU06 -> RU02 HVAC APK delta (DEX + manifest + decoded resources) provides no mechanism that explains Fragrance being hidden on the canonical RU02 bench.
 
 ## Important interpretation
 
@@ -84,17 +90,17 @@ The UI `GONE` observation is important, but is NOT by itself accepted as the roo
 
 The RU06 vs RU02-labeled CarInfo decompiled application code is functionally indistinguishable except for build/version metadata. Artifact identity still has to be reconciled against the live canonical car.
 
-The RU06 vs RU02-labeled HVAC DEX delta is now independently confirmed by JADX and smali: it is only an `isIonExist` / config91 guard around ion-animation rendering. It is not the Fragrance/config50 path and does not explain the missing Fragrance UI.
+The RU06 vs RU02-labeled HVAC application delta is now exhausted at the useful semantic level: the only DEX behavior change is ionizer/config91-specific, the decoded manifest is unchanged, and the decoded resource changes are localization-only. This strongly redirects the investigation away from HVAC APK differences and toward the firmware-specific system/framework/backend path.
 
 ## Current open question
 
-Which system/framework/backend or resource/manifest condition on the actual live RU02 stack suppresses Fragrance despite config50=1, now that the only confirmed RU06->RU02 HVAC DEX behavior change is unrelated ionizer logic?
+Which system/framework/backend condition on the actual live RU02 stack suppresses Fragrance despite config50=1 and despite the HVAC application containing the expected Fragrance predicate/resources?
 
 ## Working direction
 
 The canonical vehicle is temporarily unavailable, so live APK hash identity is deferred without blocking offline work.
 
-Immediate read-only offline step: decode and diff the RU06 vs RU02-labeled HVAC `AndroidManifest.xml` and `resources.arsc` changes. Pay special attention to package/application metadata, resource aliases/values/styles/booleans/integers/config qualifiers and any resource IDs referenced by Fragrance UI. If those differences do not explain Fragrance, pivot to system/framework/backend comparison (`vdbus_extra.jar`, VehicleDevice, VehicleService and related persistent config/event path) using the available firmware payloads.
+Immediate read-only offline step: inventory and extract the RU02 system/framework/backend components responsible for vehicle configuration and VDBus (`vdbus_extra.jar`, VehicleDevice, VehicleService and related Desay vehicle services). Map the Fragrance/config50 flow end-to-end from persistent config through EolConfig/CarConfigUtil and VDBus/service events into HVAC. Look specifically for firmware/project/market/telematics/capability/event-update gates that can leave config50 readable as 1 while preventing the Fragrance feature from becoming available.
 
 When the vehicle is available again, pull/hash the live CarInfo/HVAC APKs and reconcile local artifact labels.
 
