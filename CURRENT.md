@@ -55,10 +55,20 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - Android `system.img` was extracted read-only: 967962624 bytes; SHA-256 `19ac46038cd8662891a8da6319844b31b0cadaf5e82e156108a91b474771265d`; ext2 filesystem.
 - Correct framework path inside the image is `/system/framework`.
 - Exact RU02 framework targets located there:
-  - `vdbus.jar` — 1395532 bytes;
-  - `vdbus_extra.jar` — 111020 bytes;
+  - `vdbus.jar` — 1395532 bytes; SHA-256 `bdf017b219e4d940c17ea5d142bad7752bdf006bc28a82759259df2545c76de3`;
+  - `vdbus_extra.jar` — 111020 bytes; SHA-256 `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`;
   - `chery-platform-internal.jar` — 41604 bytes;
   - related candidates: `car-frameworks-service.jar`, `desaysv-car-frameworks-service-extension.jar`.
+- Both VDBus JARs decompile cleanly with JADX (`vdbus_extra`: 9 classes/work units; `vdbus`: 324; no reported decompilation errors in captured logs).
+- `vdbus_extra.jar` contains `CarConfigUtil`, `EolConfig`, config constants and Fragrance HVAC IDs. `vdbus.jar` contains the VDBus client/binder layer, `VDServiceDef`, `VDEventVehicleDevice` and `VDVDeviceConfigStore`.
+- `CarConfigUtil.init()` initializes VDBus and, when `ServiceType.VEHICLE_DEVICE` connects, subscribes to event `918905` (`PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`), registers its notify listener, commits the subscription, then calls `EolConfig.loadConfig()`.
+- The same subscription/load path is also used when VehicleDevice is already connected.
+- On event `918905`, `CarConfigUtil` decodes the payload with `VDVDeviceConfigStore.getValue(vDEvent)`, obtains a key/value pair, and for `vehicle.persist.project.ext.configs` calls `EolConfig.updateConfig(Utils.stringToByte(value), null, null, null, null)`. Config2..5 are handled analogously.
+- `CarConfigUtil.getConfig(int)` directly returns `EolConfig.getJetourEolConfig(int)`; there is no additional Fragrance-specific gate in `CarConfigUtil` itself.
+- `VDServiceDef` identifies the event source as system service package `com.desaysv.ivi.vds.vdev`, class `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
+- `VDServiceDef` separately identifies the vehicle HAL-facing service as `com.desaysv.ivi.vds.vehicle.service.VehicleService` under package `android.hardware.automotive.vehicle@2.0-service`.
+- `VDEventVehicleDevice` defines `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE = 918905` and `PROJECT_RESERVE_CONFIGS = 917510`.
+- Therefore the RU02 persistent-config update path is now mapped at framework level as: VehicleDevice event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC predicate.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -70,14 +80,15 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - `a2(fragranceBtn,z)` controls visibility.
 - RU06 -> RU02 HVAC DEX/manifest/resource differences contain the missing-Fragrance gate.
 - `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
+- `CarConfigUtil` contains a separate Fragrance-specific suppression after `getConfig(50)`; current RU02 code shows `getConfig()` delegates directly to `EolConfig`.
 
 ## Current open question
 
-Which RU02 system/framework/backend condition suppresses or fails to publish the Fragrance capability/event path despite persistent config50 being readable as 1 and the HVAC application containing the expected Fragrance predicate/resources?
+Which RU02 backend condition inside or upstream of `VehicleDevice` / `VehicleService` suppresses or fails to publish the Fragrance capability/event path despite persistent config50 being readable as 1 and HVAC containing the expected Fragrance logic?
 
 ## Next step
 
-Extract exact RU02 `/system/framework/vdbus_extra.jar` and `vdbus.jar`, record hashes/archive contents, decompile read-only, and map Fragrance/config50 through `EolConfig`, `CarConfigUtil`, VDBus and any `VehicleDevice`/`VehicleService` references. Expand to the other framework jars only if the reference graph requires it.
+Locate and extract the actual RU02 package implementing `com.desaysv.ivi.vds.vdev.service.VehicleDevice` from the available firmware images, then decompile that package read-only and trace production of event `918905` / `VDVDeviceConfigStore` plus any Fragrance/capability/project/market/telematics gates. Expand to `VehicleService` only where the VehicleDevice reference graph requires it.
 
 When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile local artifact labels.
 
