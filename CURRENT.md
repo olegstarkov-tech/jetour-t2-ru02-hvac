@@ -106,15 +106,17 @@ No country/project/market/telematics filter has been found in this traced transp
 
 ### Current HVAC runtime-input audit
 
-The first broad static audit of the verified RU02-labeled HVAC artifact produced these narrow observations:
+The static audit of the verified RU02-labeled HVAC artifact now establishes:
 
-- no semantic reference named `FragranceDisplay` or `FragranceWarning` was found in the generated audit, and the explicit numeric candidate section for IDs 58/59/60/61/62/64/66/71/76/88 was empty;
-- this does NOT prove those states are unused because the real presenter/backend classes are obfuscated and the grep-oriented audit was biased toward files already containing Fragrance text;
-- visible Fragrance UI callbacks found in `HvacContentView` / `T1HHvacActivity` handle power state by selecting `fragranceBtn` (`setSelected`) rather than changing its visibility;
-- `FragranceDialog` callbacks handle power, level, type, remaining amount and position/installed-state behavior; these are operational state handlers and no evidence from this audit ties them to making the main `fragrance_btn` VISIBLE;
-- `FragranceDialog` uses presenter type `b.a.d.a.b.x0`; activity/view code labels the same object `mFragrancePresenter` and calls methods such as `l()`, `n()`, `o()`, `p()`, `q()`, `u()`, `w()`, `x()`.
+- no semantic reference named `FragranceDisplay` or `FragranceWarning` was found in the first broad grep, and the explicit numeric candidate section for IDs 58/59/60/61/62/64/66/71/76/88 was empty; this is not proof those backend states are unused because obfuscated model code remained outside that grep;
+- visible Fragrance callbacks in `HvacContentView` / `T1HHvacActivity` update selected/operational state rather than main-button visibility;
+- `FragranceDialog` handles power, level, type, remaining amount and position/installed-state behavior; no evidence ties those callbacks to making `fragrance_btn` VISIBLE;
+- `b.a.d.a.b.x0` is exactly `FragrancePresenter`, with model interface `b.a.b.a.b.b` (`IFragranceModel`);
+- `x0` contains no CarInfo/VDBus IDs and no availability/visibility condition. It obtains the model with `b.a.b.a.c.e.b()`, registers via `d().x0(listener); d().a()`, unregisters via `d().b(); d().o(listener)`, and forwards all nine model callbacks directly to its listener list/view;
+- direct getter mapping is `k()->r()`, `l()->m0()`, `m()->F0()`, `n()->E()`, `o()->H()`, `p()->f0()`, `q()->h()`, `r()->z()`, `s()->P()`; actions are `t(i)->B0(i)`, `u(i)->l(i)`, `v(z)->B(z)`, `w()->c()`;
+- UI usage maps these operationally as `k=level`, `l=position`, `m=power`, `n/o/p=remain1/2/3`, `q/r/s=type1/2/3`.
 
-Therefore the next static target is the obfuscated `b.a.d.a.b.x0` FragrancePresenter and its callback/subscription interfaces, not a preselected assumption that `AC_FRAGRANCE_DISPLAY` is the missing gate.
+Therefore `x0` / FragrancePresenter is CLOSED as the likely location of a hidden availability gate. The immediate concrete target is the `IFragranceModel` implementation returned by `b.a.b.a.c.e.b()`.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -137,25 +139,27 @@ Therefore the next static target is the obfuscated `b.a.d.a.b.x0` FragrancePrese
 - `0x7c24` is a second independent callback implementation; mini-debug proves it is a non-virtual thunk to `0x7b28`.
 - The traced VehicleDevice callback/publication bridge applies a country/project/market/telematics filter before publishing changed project config; traced code is direct packaging and publish.
 - Missing Fragrance should be attributed to failure of the `vehicle.persist.project.ext.configs` / event-918905 transport path without new contradictory evidence.
+- `AC_FRAGRANCE_DISPLAY` is already proven to be the missing gate; no concrete consumer path has been found.
+- `b.a.d.a.b.x0` / FragrancePresenter contains the hidden visibility/capability gate; its code is direct model delegation and callback fan-out.
 
 ## Current open question
 
-The project-config transport mechanism is statically closed. The active question is now:
+The project-config transport mechanism and FragrancePresenter layer are now statically closed. The active question is:
 
-**What other RU02 Fragrance availability/capability input keeps the OEM UI hidden even though config50 is correctly delivered and readable as 1?**
+**Which concrete `IFragranceModel` implementation does `b.a.b.a.c.e.b()` return, and what CarInfo/HVAC/VDBus state does that model consume beyond config50?**
 
-The immediate sub-question is: what does `b.a.d.a.b.x0` subscribe to/read, and does it expose an additional availability/display state separate from ordinary fragrance power/type/level/remain state?
+The target is specifically any additional display/availability/warning/capability state separate from normal Fragrance power/type/level/remain/position.
 
 ## Next step
 
-Trace the current RU02 HVAC `b.a.d.a.b.x0` FragrancePresenter end-to-end:
+Trace the concrete model factory path only:
 
-1. inspect the complete `x0.java` source and identify superclass/interfaces/callback registrations;
-2. map public methods `l()/n()/o()/p()/q()/u()/w()/x()` and any other methods to underlying CarInfo/HVAC/VDBus reads/writes;
-3. enumerate every event/property ID or proxy method used by x0, including registrations and initial reads;
-4. inspect x0 callback interface implementations/consumers to determine whether any state controls availability/visibility rather than operational status;
-5. only after a concrete candidate predicate is found, trace its producer into CarInfo/VDBus/native backend.
+1. inspect `b/a/b/a/c/e.java` and identify the exact object/class returned by `e.b()`;
+2. decompile/dump only that concrete `IFragranceModel` implementation and directly referenced fragrance helper/proxy classes;
+3. map interface methods `r/m0/F0/E/H/f0/h/z/P`, callbacks `x0/o`, lifecycle `a/b/c`, and writes `B0/l/B` to concrete event/property IDs;
+4. separate ordinary operational state from any availability/display/warning/capability state;
+5. only after locating a concrete additional predicate, trace that one producer into CarInfo/VDBus/native backend.
 
-Do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching. Do not treat `AC_FRAGRANCE_DISPLAY` as root cause without a concrete x0/callback consumer path.
+Do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, unsigned HVAC patching, or further presenter grep. Do not treat `AC_FRAGRANCE_DISPLAY` as root cause without a concrete model/consumer path.
 
 When the vehicle becomes available again, pull/hash live HVAC/CarInfo APKs and reconcile artifact identity before any runtime experiment that depends on exact APK identity.
