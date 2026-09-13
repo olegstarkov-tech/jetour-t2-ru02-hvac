@@ -4,35 +4,30 @@
 
 Identify the system/backend condition on dealer RU firmware 00.00.02 that blocks OEM Fragrance availability despite config50=1 being correctly present.
 
+## Current state
+
+The RU06 vs RU02-labeled HVAC application delta is effectively closed as a Fragrance discriminator: the only confirmed DEX behavior change is ionizer/config91-specific, decoded manifest is semantically identical, and decoded resource changes are localization-only.
+
+The canonical vehicle is temporarily unavailable; live APK hash identity is deferred without blocking offline analysis.
+
+The RU02 OTA payload contains Android `system`, `system_ext`, `product`, `vendor` and separate `system_qnx`. Android `system.img` has been extracted read-only (967962624 bytes; SHA-256 `19ac46038cd8662891a8da6319844b31b0cadaf5e82e156108a91b474771265d`).
+
+Inside the image the correct framework directory is `/system/framework`. It contains:
+
+- `vdbus.jar` — 1395532 bytes;
+- `vdbus_extra.jar` — 111020 bytes;
+- `chery-platform-internal.jar` — 41604 bytes;
+- related candidates `car-frameworks-service.jar` and `desaysv-car-frameworks-service-extension.jar`.
+
 ## Next step
 
-Do not return to APK patching and do not install more packages yet.
+1. Extract exact RU02 `/system/framework/vdbus_extra.jar` and `/system/framework/vdbus.jar` from `system.img`.
+2. Record SHA-256 and archive contents.
+3. Decompile both read-only.
+4. Map Fragrance/config50 through `EolConfig`, `CarConfigUtil`, VDBus and any `VehicleDevice`/`VehicleService` references.
+5. Expand to the other framework jars only if the call/reference graph requires it.
 
-The focused RU06 vs RU02-labeled application comparison is now effectively closed as a Fragrance discriminator:
-
-- CarInfo generated Java differs only in `BuildConfig.VERSION_NAME`; no functional application-code delta is currently visible.
-- HVAC DEX behavior differs only in `com/desaysv/svhvac/view/b.java::K1(boolean)`.
-- RU02 adds `OfflineConfigManager.h()` plus early return before the existing `ionAnimation` block.
-- `h()` is definitively `isIonExist`, checking config ID 91.
-- Fragrance is separately `OfflineConfigManager.f()`, checking config ID 50 plus `!isT1H_PHEV()`.
-- Direct apktool/smali diff confirms the same ionizer-only DEX delta.
-- Decoded `AndroidManifest.xml` RU06 vs RU02-labeled is semantically identical.
-- Decoded resource comparison finds only localization/string changes: 13 differing common `strings.xml` files plus one RU02-only `values-ms-rMY/strings.xml`.
-- No decoded layout, bool, integer, style, id, array, drawable, alias or visibility resource changed.
-- Russian Fragrance strings are unchanged. Fragrance-related resource differences are only translations/localization and the default-English typo fix `fragnance` -> `fragrance`.
-- Therefore the observed RU06 -> RU02 HVAC APK delta does not provide a mechanism for hiding Fragrance.
-
-The canonical vehicle is temporarily unavailable for about six days. This defers live APK hash identity but does not block offline analysis.
-
-Immediate read-only offline task:
-
-1. pivot to the RU02 system/framework/backend path rather than further HVAC APK diffing;
-2. inventory the available RU02 firmware payload for `vdbus_extra.jar`, VehicleDevice, VehicleService and related Desay vehicle/VDBus components;
-3. extract/decompile the relevant RU02 framework/service artifacts and map the Fragrance/config50 path end-to-end: persistent config -> EolConfig/CarConfigUtil -> VDBus/VehicleDevice/VehicleService -> HVAC client/event path;
-4. identify any firmware-specific capability, market/project, telematics or event/update gating that can make config50 present yet leave Fragrance unavailable;
-5. use RU05/RU06 firmware system components only as comparison references when matching artifacts are available; do not transfer conclusions automatically across firmware generations.
-
-Artifact identity remains open: earlier live `dumpsys` CarInfo versionName matches the local artifact currently labeled RU06, not the RU02-TEL-2026-labeled artifact. When the vehicle becomes available, pull/hash the live CarInfo and HVAC APKs and reconcile labels before any package replacement experiment.
+When the vehicle is available again, pull/hash the live CarInfo/HVAC APKs and reconcile labels before any package replacement experiment.
 
 ## Guardrails
 
@@ -40,6 +35,5 @@ Artifact identity remains open: earlier live `dumpsys` CarInfo versionName match
 - Prefer read-only extraction/decompile/static comparison.
 - No blind VDBus/property/config writes.
 - No unsigned system APK patch path.
-- No package replacement until a concrete static/runtime hypothesis exists.
 - Do not import D08/00.00.08 conclusions as facts.
 - Do not reopen DISPROVEN hypotheses without new evidence.
