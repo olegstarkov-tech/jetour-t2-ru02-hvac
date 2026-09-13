@@ -43,29 +43,39 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - `VehicleService` is separately HAL-facing: `com.desaysv.ivi.vds.vehicle.service.VehicleService` under `android.hardware.automotive.vehicle@2.0-service`.
 - PROVEN framework chain: VehicleDevice event 918905 -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC Fragrance predicate.
 
-### Firmware images / ownership localization
+### Ownership localization
 
-- `system.img`: 967962624 bytes, SHA-256 `19ac46038cd8662891a8da6319844b31b0cadaf5e82e156108a91b474771265d`.
-- `system_ext.img`: about 80.8 MB, SHA-256 `1b9902976b45277875d4a9b79d49fa4a26599dc9cdb682459c5fa1acfe47582b`.
-- `vendor.img`: about 348.9 MB, SHA-256 `b1e7e189033a7d4347b2c730263d535955b783cb48a1a3226b6f0e8c4a9ef283`.
 - Exact DEX `class_def` scan across 88 APKs in `system/app`, `system/priv-app`, `product/app`, `product/priv-app` found zero definitions of `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`.
 - Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app locations checked 102 archives and also found zero exact owners.
 - `DesaySVProjectService.apk` and `SVVDSCarStateService.apk` were explicitly decompiled and DISPROVEN as VehicleDevice owners.
-- Full recursive vendor export is now complete (`/home/olegs/RU02_vendor_dump`, about 385 MB).
-- Vendor contains only two APKs (`TimeService.apk` and `overlay/framework-res-overlay.apk`), zero JARs, one ODEX, one VDEX, zero OAT and zero APEX. Therefore the missing backend is not hidden in an unscanned ordinary vendor APK/JAR population.
+- Full recursive `vendor.img` inventory is complete. Vendor contains only 2 APKs, 0 JARs, 1 ODEX, 1 VDEX, 0 OAT and 0 APEX, so the missing backend is not an unscanned ordinary vendor Java package.
 
-### Native vendor VehicleDevice stack
+### Native RU02 VehicleDevice path
 
-Full vendor inventory reveals a dedicated native Desay VehicleDevice stack:
+RU02 vendor contains a dedicated native Desay VehicleDevice stack:
 
-- init rc: `/etc/init/com.desaysv.vehicledevice@1.0-service.rc`;
-- executable: `/bin/hw/com.desaysv.vehicledevice@1.0-service`;
-- HIDL/interface libraries: `/lib/com.desaysv.vehicledevice@1.0.so` and `/lib64/com.desaysv.vehicledevice@1.0.so`;
-- implementation library: `/lib64/libdesaysv_vehicledevice.so`;
-- related vehicle bus libraries include `libdesaysv_vehiclebus.so`, `libdesaysv_vehiclebus_backend_aidl.so`, `libdesaysv_vehiclebus_backend_aosp.so`, `libproperties_vehicle.so`, and `libutils_vehicle.so` in vendor lib/lib64.
-- Vendor also contains HAL-facing `/bin/hw/android.hardware.automotive.vehicle@2.0-service.g6` and init rc `/etc/init/android.hardware.automotive.vehicle@2.0-service.g6.rc`.
+- `/etc/init/com.desaysv.vehicledevice@1.0-service.rc`;
+- `/bin/hw/com.desaysv.vehicledevice@1.0-service`;
+- `/lib64/com.desaysv.vehicledevice@1.0.so`;
+- `/lib64/libdesaysv_vehicledevice.so`;
+- related `libdesaysv_vehiclebus.so`, `libdesaysv_vehiclebus_backend_aidl.so`, `libdesaysv_vehiclebus_backend_aosp.so`, `libproperties_vehicle.so`, and Android Automotive Vehicle HAL libraries.
 
-This is PROVEN evidence that RU02 contains a native vendor VehicleDevice service stack. It is now the highest-priority backend target. The exact relationship between this native `com.desaysv.vehicledevice@1.0-service` and the framework logical service name `com.desaysv.ivi.vds.vdev.service.VehicleDevice` is not yet proven and must be traced from init/binary/library evidence rather than assumed.
+Static inspection now proves:
+
+- native service executable links `libdesaysv_vehiclebus_backend_aidl.so`, `libdesaysv_vehiclebus_backend_aosp.so`, `libdesaysv_vehiclebus.so`, `libdesaysv_vehicledevice.so`, `com.desaysv.vehicledevice@1.0.so`, and `android.hardware.automotive.vehicle@2.0.so`;
+- service imports `VehicleBusStub::get`, `set`, `bulkGet`, `publish`, `subscribe`, `unsubscribe` and `VehicleBusBundle` accessors;
+- service binary contains string `vdev.service.VehicleDevice|vehiclebus`, strongly linking this native stack to the logical VDBus VehicleDevice role, though exact registration semantics still require targeted disassembly;
+- `libdesaysv_vehicledevice.so` exports `VehicleHal::setProjectConfigs`, `parseProjectConfigs`, `parseProjectConfigsMap`, `setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, and `setVehiclePropertyConfigCallback`;
+- `libdesaysv_vehicledevice.so` contains `vehicle.persist.project.ext.configs` through `ext.configs9`, `vehicle.persist.project.code`, `vehicle.persist.project.pn`, and `vehicle.persist.project.phonelink.configs`;
+- it also contains `countryCode` and `ro.sys.ivi.eol.country.code` plus log string `VehicleHal::onVehiclePropertyConfigChange proKey :%s, proValue :%s`.
+
+Therefore the exact RU02 native project-config layer has now been found. The leading static model is:
+
+`Android Automotive Vehicle HAL -> libdesaysv_vehicledevice.so / VehicleHal -> property-config callback -> native VehicleDevice service -> VehicleBusStub publish -> framework VDBus VehicleDevice path -> CarConfigUtil/EolConfig`.
+
+The callback-to-publish edge and assignment/construction of logical event `918905` are not yet PROVEN and are the immediate target.
+
+Raw 32-bit searches for `918905` and `917510` in the three first native targets were negative. This is not evidence that the event path is absent; the ID may be assigned in glue/backend code or represented indirectly.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -81,22 +91,23 @@ This is PROVEN evidence that RU02 contains a native vendor VehicleDevice service
 - Raw DEX string presence identifies the VehicleDevice implementation APK.
 - `DesaySVProjectService.apk` or `SVVDSCarStateService.apk` implements VehicleDevice.
 - Any scanned ordinary APK/JAR in RU02 `system`, `product`, or `system_ext` defines VehicleDevice.
-- `/vehicle` contains the Java VehicleDevice implementation; it contains only config files.
-- Vendor needs another broad APK-name search; full recursive inventory shows only two APKs and no JARs.
+- `/vehicle` contains the Java VehicleDevice implementation.
+- Vendor needs another broad APK/JAR search; the relevant backend is native.
 
 ## Current open question
 
-How does the native RU02 vendor VehicleDevice stack (`com.desaysv.vehicledevice@1.0-service` / `libdesaysv_vehicledevice.so`) feed the framework VDBus VehicleDevice path/event `918905`, and is there a project/market/telematics/capability condition there that suppresses the Fragrance path despite persistent config50 being readable as 1?
+Where exactly is the RU02 native callback-to-VehicleBus publication bridge for project config changes, and does it apply a country/project/market/telematics/capability condition that can explain missing Fragrance despite config50=1 being readable?
 
 ## Next step
 
-Inspect only the native VehicleDevice launch/implementation chain read-only:
+Perform targeted symbol/disassembly tracing only around:
 
-1. dump `com.desaysv.vehicledevice@1.0-service.rc`;
-2. fingerprint and inspect dynamic dependencies/strings/symbols for `/bin/hw/com.desaysv.vehicledevice@1.0-service` and `/lib64/libdesaysv_vehicledevice.so`;
-3. search those exact targets for `918905`, `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`, `vehicle.persist.project.ext.configs`, `Fragrance`, config/property/store terms, project/market/country/region/TBox/telematics/capability terms, and references to vehiclebus/Vehicle HAL;
-4. inspect `init.desaysv.vehicle.rc` and `android.hardware.automotive.vehicle@2.0-service.g6.rc` only where references require it.
+1. `VehicleHal::onVehiclePropertyConfigChange(...)`;
+2. `VehicleHal::setProjectExtConfigs(...)` / `requestProjectConfigs()`;
+3. the service-side implementation of `ISVPVehiclePropertyConfigCallback` or equivalent callback class;
+4. call sites to `VehicleBusStub::publish()`;
+5. if event construction is delegated, follow only into `libdesaysv_vehiclebus.so` / backend library actually referenced by those call sites.
 
-Do not return to broad APK guessing or unsigned HVAC patching.
+Do not return to broad APK guessing, OAT/VDEX hunting, or unsigned HVAC patching.
 
-When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile local artifact labels.
+When the vehicle becomes available again, pull/hash live HVAC/CarInfo APKs and reconcile artifact identity.
