@@ -7,22 +7,36 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - Bench is Jetour T2 / T1J, official RU dealer vehicle, Desay SV 8155, firmware 00.00.02, telematics present.
 - Engineering Fragrance toggle changes `config1` byte12 between `0x85` and `0xC5`; delta `0x40` = bit6.
 - `vdbus_extra.jar` defines `ID_CAR_CONFIG_FRAGRANCE = 50`.
-- `EolConfig.getJetourEolConfig(50)` returns `(mCarConfig1[12] >> 6) & 1` from `vehicle.persist.project.ext.configs`.
+- `EolConfig.getJetourEolConfig(50)` returns `(mCarConfig1[12] >> 6) & 1`.
+- `vehicle.persist.project.ext.configs` is the source for `mCarConfig1`.
 - Current HVAC has been observed starting with ext config containing `C5` at byte12.
-- Current HVAC Fragrance predicate is `getConfig(50)==1 && !isT1H_PHEV()`.
-- Older signed RU05 HVAC executed on RU02 but did not restore Fragrance; replacing HVAC alone is not a solution.
-- Current `bottom_layout.xml` declares `fragrance_btn` as `GONE`; investigated binding/code has no proven visibility path; `a2(fragranceBtn,z)` only controls enabled/clickable.
-- Framework chain is PROVEN: VehicleDevice event `918905` -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC predicate.
-- Ordinary Java owner search is negative across scanned `system`, `product`, `system_ext`, and vendor APK/JAR containers; the relevant RU02 VehicleDevice backend is native.
-- RU02 vendor contains `/bin/hw/com.desaysv.vehicledevice@1.0-service`, `/lib64/libdesaysv_vehicledevice.so`, HIDL `com.desaysv.vehicledevice@1.0.so`, and Desay VehicleBus libraries.
-- The service executable imports `VehicleBusStub::get/set/bulkGet/publish/subscribe/unsubscribe` and contains `vdev.service.VehicleDevice|vehiclebus`.
-- The service registers `SVPVehicleDevice::setVehiclePropertyConfigCallback(ISVPVehiclePropertyConfigCallback*)` and contains log string `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`.
+- Current HVAC Fragrance gate is `getConfig(50)==1 && !isT1H_PHEV()`.
+- Current HVAC contains Fragrance code/resources; RU06 -> RU02-labeled HVAC deltas do not explain hidden Fragrance.
+- Older signed RU05 HVAC executed on RU02 system but did not restore Fragrance; replacing HVAC alone is not a solution.
+- Current `bottom_layout.xml` declares `fragrance_btn` as `GONE`; investigated binding/code did not reveal a visibility path, and `a2(fragranceBtn,z)` only controls enabled/clickable state.
+- RU05 -> RU06 is a real packaging/architecture generation boundary; older apps expose more embedded VDBus/carconfig implementation symbols.
+- RU02 `system.img` SHA-256 is `19ac46038cd8662891a8da6319844b31b0cadaf5e82e156108a91b474771265d`.
+- RU02 `system_ext.img` SHA-256 is `1b9902976b45277875d4a9b79d49fa4a26599dc9cdb682459c5fa1acfe47582b`.
+- RU02 `vendor.img` SHA-256 is `b1e7e189033a7d4347b2c730263d535955b783cb48a1a3226b6f0e8c4a9ef283`.
+- `/system/framework/vdbus.jar` SHA-256 is `bdf017b219e4d940c17ea5d142bad7752bdf006bc28a82759259df2545c76de3`; `/system/framework/vdbus_extra.jar` SHA-256 is `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`.
+- `CarConfigUtil.init()` subscribes to VehicleDevice event `918905` (`PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`).
+- On event `918905`, payload is decoded through `VDVDeviceConfigStore`; key `vehicle.persist.project.ext.configs` updates EOL config via `EolConfig.updateConfig(...)`.
+- `CarConfigUtil.getConfig(int)` directly delegates to `EolConfig.getJetourEolConfig(int)`; no extra Fragrance-specific gate exists there.
+- `VDServiceDef` identifies event producer `com.desaysv.ivi.vds.vdev.service.VehicleDevice`; `VehicleService` is separately HAL-facing.
+- Framework-level config update chain is PROVEN: `VehicleDevice` event 918905 -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC Fragrance predicate.
+- Exact DEX `class_def` scan checked 88 RU02 APKs across `system/app`, `system/priv-app`, `product/app`, and `product/priv-app`; zero exact VehicleDevice owners found.
+- Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app paths checked 102 Java archives; zero exact owners found.
+- Full recursive vendor inventory shows only 2 APKs, 0 JARs, 1 ODEX, 1 VDEX, 0 OAT and 0 APEX; there is no hidden vendor Java implementation population to explain VehicleDevice ownership.
+- Vendor contains a dedicated native VehicleDevice stack: `/bin/hw/com.desaysv.vehicledevice@1.0-service`, `/etc/init/com.desaysv.vehicledevice@1.0-service.rc`, `/lib64/com.desaysv.vehicledevice@1.0.so`, `/lib64/libdesaysv_vehicledevice.so`, plus `libdesaysv_vehiclebus.so` and backend libraries.
+- The native VehicleDevice service executable directly links `libdesaysv_vehiclebus_backend_aidl.so`, `libdesaysv_vehiclebus_backend_aosp.so`, `libdesaysv_vehiclebus.so`, `libdesaysv_vehicledevice.so`, `com.desaysv.vehicledevice@1.0.so`, and `android.hardware.automotive.vehicle@2.0.so`.
+- The service executable imports `VehicleBusStub::get/set/bulkGet/publish/subscribe/unsubscribe` and `VehicleBusBundle` accessors, proving the native service directly participates in the VehicleBus publish/subscribe layer.
+- The service binary contains `vdev.service.VehicleDevice|vehiclebus` and `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`.
 - `libdesaysv_vehicledevice.so` exports `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, `setVehiclePropertyConfigCallback`, and related project-config handlers.
-- `VehicleHal::setProjectExtConfigs(key,value)` reads the old value, ignores empty input, ignores unchanged values, otherwise updates `VehicleConfigStore::setProjectConfig(key,value)`, updates EOL config slots 1-4 for the first four `vehicle.persist.project.ext.configs*` keys, then invokes the registered callback with `(key,value)`.
-- `VehicleHal::onVehiclePropertyConfigChange(key,value)` logs and directly forwards `(key,value)` to the registered callback virtual method when present.
-- No country/project/market/telematics/Fragrance-specific branch exists in those two traced HAL functions.
-- `countryCode` and `ro.sys.ivi.eol.country.code` do exist elsewhere in `libdesaysv_vehicledevice.so`, so country handling exists in the native layer but is not the gate in these two functions.
-- Raw 32-bit searches for `918905` and `917510` in the first native targets were negative; this does not disprove indirect event construction.
+- `VehicleHal::setProjectExtConfigs(key,value)` compares against the old value, ignores empty/unchanged updates, writes changed values to `VehicleConfigStore`, updates EOL cache state for ext-config keys, then forwards the same key/value through the registered callback.
+- `VehicleHal::onVehiclePropertyConfigChange(key,value)` only logs and forwards the same key/value to the callback; no country/project/market/telematics gate is present in that forwarding function.
+- `libdesaysv_vehicledevice.so` contains the persistent project keys `vehicle.persist.project.ext.configs` through `ext.configs9`, project code/PN/phonelink keys, `countryCode`, and `ro.sys.ivi.eol.country.code`.
+- Targeted service disassembly proves native construction of event ID `918905` (`0x000E0579`): `0x7ba8 mov w8,#0x579` + `0x7bb0 movk w8,#0xe,lsl#16`, and again `0x7ca4 mov w8,#0x579` + `0x7cac movk w8,#0xe,lsl#16`.
+- Those two event-ID materialization sites are in the same local service region as xref candidates to the exact `VehicleDeviceVDS::onVehiclePropertyConfigChange` log string. Therefore event `918905` is constructed in the native VehicleDevice service glue, not only represented as a Java framework constant.
 
 ## DISPROVEN
 
@@ -32,23 +46,27 @@ Do not reopen without new contradictory evidence:
 - New HVAC uses a different config ID instead of 50.
 - Fragrance code/resources were removed from current HVAC.
 - Installing old HVAC APK alone solves the problem.
-- T1H is the active vehicle branch.
+- T1H is the active vehicle branch for this T1J bench.
 - `a2(fragranceBtn,z)` is the visibility gate.
-- `OfflineConfigManager.h()` is Fragrance; it is ionizer/config91.
+- `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
 - RU06 -> RU02 HVAC DEX/manifest/resource deltas contain the missing-Fragrance gate.
-- `CarConfigUtil.getConfig(50)` applies another hidden Fragrance-specific gate.
-- Raw DEX string presence identifies a VehicleDevice APK owner.
-- `DesaySVProjectService.apk` or `SVVDSCarStateService.apk` implements VehicleDevice.
-- Any scanned ordinary APK/JAR implements the RU02 VehicleDevice backend.
-- `VehicleHal::setProjectExtConfigs()` or `VehicleHal::onVehiclePropertyConfigChange()` applies a country/project/market/telematics filter before forwarding a changed non-empty config value.
+- `CarConfigUtil.getConfig(50)` applies another hidden Fragrance-specific gate after `EolConfig`.
+- Raw DEX string presence is enough to identify the VehicleDevice implementation APK.
+- `DesaySVProjectService.apk` implements VehicleDevice.
+- `SVVDSCarStateService.apk` implements VehicleDevice.
+- Any scanned ordinary APK/JAR in RU02 `system`, `product`, or `system_ext` defines VehicleDevice.
+- `/vehicle` contains the Java VehicleDevice implementation.
+- Vendor needs another broad APK/JAR search; recursive inventory shows the backend is native.
+- Event `918905` exists only in Java/framework space; native service code explicitly materializes the same numeric ID.
 
 ## OPEN
 
-- What does service-side `VehicleDeviceVDS::onVehiclePropertyConfigChange(key,value)` put into `VehicleBusEvent` and how does it publish it?
-- Where is logical event `918905` assigned/constructed: service executable, `libdesaysv_vehiclebus.so`, backend library, or table-driven service metadata?
-- Is any remaining project/market/telematics/capability filter applied in the service/VehicleBus glue layer?
-- Why does old RU05 HVAC also fail on RU02 system base?
-- Which local HVAC/CarInfo artifacts are byte-exact with the live canonical vehicle?
+- Which RU02 native condition prevents Fragrance from becoming available despite config50=1?
+- Which exact service function/basic block owns the `0x7ba8` / `0x7ca4` event-918905 sites?
+- How are `VehicleBusEvent` and bundle fields built there, and where is the final `VehicleBusStub::publish()` call edge?
+- Are `countryCode`, project/product IDs, telematics, capability, or another condition used later in this exact service-side publication path?
+- Why does old RU05 HVAC also fail on the RU02 system base?
+- Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 
 ## Constraints
 
