@@ -51,7 +51,9 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - Exact DEX `class_def` scan across 88 APKs in `system/app`, `system/priv-app`, `product/app`, `product/priv-app` found zero definitions of `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`.
 - Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app locations checked 102 archives and also found zero exact owners.
 - `DesaySVProjectService.apk` and `SVVDSCarStateService.apk` were explicitly decompiled and DISPROVEN as VehicleDevice owners.
-- First vendor scan is NOT conclusive: although `vendor.img` extraction succeeded, the scanner reached only 1 archive. Therefore vendor cannot yet be marked negative; vendor layout traversal must be fixed/verified before escalating to OAT/VDEX/APEX/native hypotheses.
+- First vendor scan is NOT conclusive: although `vendor.img` extraction succeeded, the scanner reached only 1 archive.
+- Vendor root layout is now inspected. It contains ordinary `/app` but, critically, also a dedicated top-level `/vehicle` directory. The first scanner did not traverse `/vehicle`, which explains why it reached only `/app/TimeService/TimeService.apk` and cannot support a negative vendor conclusion.
+- `/vehicle` is now the highest-priority candidate subtree for locating the actual `VehicleDevice` implementation before any escalation to OAT/VDEX/APEX/native hypotheses.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -59,7 +61,7 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - New HVAC uses another config ID instead of 50.
 - Fragrance code/resources were removed from current HVAC.
 - Installing old HVAC alone solves the issue.
-- T1H is the active vehicle branch for this T1J bench.
+- T1H is the active branch for this T1J bench.
 - `a2(fragranceBtn,z)` controls visibility.
 - RU06 -> RU02 HVAC DEX/manifest/resource differences contain the missing-Fragrance gate.
 - `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
@@ -74,7 +76,7 @@ Where is the actual RU02 implementation of `com.desaysv.ivi.vds.vdev.service.Veh
 
 ## Next step
 
-Inspect the actual `vendor.img` directory layout and enumerate all APK/JAR/preopt candidates before repeating exact ownership search there. Do not treat the current vendor pass (`Archives checked: 1`) as a negative result. Only after vendor is exhaustively covered should investigation move to OAT/VDEX/APEX/native/system-service packaging.
+Inspect the dedicated vendor `/vehicle` subtree read-only, enumerate its immediate contents and nearby APK/JAR/OAT/VDEX/native files, then run exact ownership search only across that subtree. Do not treat vendor as negative and do not escalate to OAT/VDEX/APEX/native packaging until `/vehicle` has been covered.
 
 When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile local artifact labels.
 
