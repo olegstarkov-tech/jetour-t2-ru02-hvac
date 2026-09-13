@@ -48,7 +48,7 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - Exact DEX `class_def` scan across 88 APKs in `system/app`, `system/priv-app`, `product/app`, `product/priv-app` found zero definitions of `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`.
 - Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app locations checked 102 archives and also found zero exact owners.
 - `DesaySVProjectService.apk` and `SVVDSCarStateService.apk` were explicitly decompiled and DISPROVEN as VehicleDevice owners.
-- Full recursive `vendor.img` inventory is complete. Vendor contains only 2 APKs, 0 JARs, 1 ODEX, 1 VDEX, 0 OAT and 0 APEX, so the missing backend is not an unscanned ordinary vendor Java package.
+- Full recursive `vendor.img` inventory proves the relevant backend is native, not a hidden Java package.
 
 ### Native RU02 VehicleDevice path
 
@@ -62,39 +62,46 @@ RU02 vendor contains a dedicated native Desay VehicleDevice stack:
 
 Static inspection proves:
 
-- native service executable links the Vehicle HAL and Desay VehicleBus layers;
+- native service links the Vehicle HAL and Desay VehicleBus layers;
 - service imports `VehicleBusStub::get`, `set`, `bulkGet`, `publish`, `subscribe`, `unsubscribe` and `VehicleBusBundle` accessors;
-- service binary contains `vdev.service.VehicleDevice|vehiclebus` and `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`;
 - `libdesaysv_vehicledevice.so` exports `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, and `setVehiclePropertyConfigCallback`;
 - `VehicleHal::setProjectExtConfigs(key,value)` compares against the stored value, ignores empty/unchanged updates, writes changed project config to `VehicleConfigStore`, updates EOL caches for ext-config keys, then invokes the registered property-config callback with the same key/value;
 - `VehicleHal::onVehiclePropertyConfigChange(key,value)` only logs and forwards the same key/value through the registered callback; no country/project/market/telematics condition was observed in that forwarding function;
 - `libdesaysv_vehicledevice.so` contains `vehicle.persist.project.ext.configs` through `ext.configs9`, project code/PN/phonelink keys, `countryCode`, and `ro.sys.ivi.eol.country.code`.
 
-### Event 918905 native publication bridge
+### Event 918905 native publication bridge — CLOSED
 
-Targeted disassembly of `/vendor/bin/hw/com.desaysv.vehicledevice@1.0-service` now closes the native publication transport path.
+Targeted disassembly plus the embedded `.gnu_debugdata` mini-ELF closes the native project-config publication path.
 
-Two ABI-equivalent callback blocks begin around `0x7b28` and `0x7c24`. Both log the exact string `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`, preserve callback arguments as `x20 = proKey` and `x19 = proValue`, construct a `VehicleBusBundle`, materialize event ID `918905` (`0x000E0579`) into the event object at `sp+4`, then perform two `VehicleBusBundle::putString(...)` calls:
+Mini-debug symbols prove:
 
-- first field key is the global `std::string` object at VA `0x135a0`, value argument is `x20` = upstream `proKey`;
-- second field key is the global `std::string` object at VA `0x135b8`, value argument is `x19` = upstream `proValue`.
+- `0x7b28` = `com::desaysv::vehicledevice::V1_0::implementation::VehicleDeviceVDS::onVehiclePropertyConfigChange(const std::string&, const std::string&)`;
+- `0x7c24` = `non-virtual thunk to VehicleDeviceVDS::onVehiclePropertyConfigChange(...)`, so it is not a second semantic implementation;
+- `0x11040` = `vtable for ...::VehicleDeviceVDS` (336 bytes).
 
-Therefore the payload values are PROVEN to be the exact upstream property key/value pair. The literal names stored in global string objects `0x135a0` and `0x135b8` are still unresolved.
+Inside the real callback at `0x7b28`:
 
-The final publish edge is also PROVEN:
+- callback arguments are preserved as `x20 = proKey` and `x19 = proValue`;
+- a `VehicleBusEvent`/embedded `VehicleBusBundle` is built on the stack;
+- event ID `918905` (`0x000E0579`) is written at `sp+4`;
+- first insertion is `VehicleBusBundle::putString(global_0x135a0, proKey)`;
+- second insertion is `VehicleBusBundle::putString(global_0x135b8, proValue)`;
+- then the object vptr is loaded, virtual slot `+0x38` is loaded, and `blr` is executed with the event pointer.
 
-- callback block `0x7bdc..0x7bec` loads the object's vptr, then loads virtual slot `+0x38`, then executes `blr x8` with `x1 = sp` pointing to the constructed `VehicleBusEvent`;
-- service class vptr setup at `0x7d20` stores primary vptr address `0x11050`;
+Publication target is exact:
+
+- Itanium-style vtable symbol starts at `0x11040`; primary address point used by the object is `0x11050`;
 - `0x11050 + 0x38 = 0x11088`;
-- ELF relocation at `0x11088` is exactly `R_AARCH64_ABS64 VehicleBusStub::publish(VehicleBusEvent const&)`.
+- ELF relocation at `0x11088` is exactly `R_AARCH64_ABS64 VehicleBusStub::publish(VehicleBusEvent const&)`;
+- therefore the indirect `blr` at `0x7bec` is definitively `VehicleBusStub::publish(event)`.
 
-Thus `blr x8` at `0x7bec` is definitively `VehicleBusStub::publish(event)`. The second block uses the same virtual slot after a `this` adjustment (`ldr x8,[x21,#-0x30]!`) and is consistent with an ABI thunk / secondary-base entry point, not separate event semantics.
+The mini-debug pass did not expose symbol names for global `std::string` bundle-key objects at `0x135a0` and `0x135b8`. Their payload values are nevertheless PROVEN to be the original callback property key and value. Resolving the literal bundle field names is now documentation-only, not a root-cause blocker.
 
 PROVEN end-to-end static transport chain:
 
-`VehicleHal::onVehiclePropertyConfigChange(key,value) -> VehicleDeviceVDS callback -> VehicleBusEvent.id=918905 -> bundle(globalA,key)+bundle(globalB,value) -> VehicleBusStub::publish(event) -> framework VDBus event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
+`VehicleHal::onVehiclePropertyConfigChange(key,value) -> VehicleDeviceVDS::onVehiclePropertyConfigChange(key,value) -> VehicleBusEvent.id=918905 -> bundle(globalA,key)+bundle(globalB,value) -> VehicleBusStub::publish(event) -> framework VDBus event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
 
-No country/project/market/telematics filter has been found in the traced callback/publication transport path itself.
+No country/project/market/telematics filter has been found in this traced transport path itself.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -112,23 +119,24 @@ No country/project/market/telematics filter has been found in the traced callbac
 - Any scanned ordinary APK/JAR in RU02 `system`, `product`, or `system_ext` defines VehicleDevice.
 - `/vehicle` contains the Java VehicleDevice implementation.
 - Vendor needs another broad APK/JAR search; the relevant backend is native.
-- Event `918905` exists only in the Java framework; the native service explicitly constructs `0x000E0579`.
-- A direct PLT call to `VehicleBusStub::publish()` should exist in the 918905 block; publish is intentionally reached through vtable slot `+0x38` / relocated address `0x11088`.
-- The native VehicleDevice callback/publication bridge itself applies a visible country/project/market/telematics filter before publishing changed project config; traced code is a direct key/value packaging and publish path.
+- Event `918905` exists only in the Java framework.
+- The 918905 path should contain a direct `bl VehicleBusStub::publish@plt`; publish is reached through vtable slot `+0x38` / relocation `0x11088`.
+- `0x7c24` is a second independent callback implementation; mini-debug proves it is a non-virtual thunk to `0x7b28`.
+- The traced VehicleDevice callback/publication bridge applies a country/project/market/telematics filter before publishing changed project config; traced code is direct packaging and publish.
+- Missing Fragrance should be attributed to failure of the `vehicle.persist.project.ext.configs` / event-918905 transport path without new contradictory evidence.
 
 ## Current open question
 
-The 918905 transport mechanism is now statically closed. The remaining mission is to find the actual Fragrance availability/capability mechanism that can keep the UI hidden even while config50 is correctly delivered and readable as 1.
+The project-config transport mechanism is statically closed. The active question is now:
 
-Two narrow loose ends remain before leaving this service binary:
+**What other RU02 Fragrance availability/capability input keeps the OEM UI hidden even though config50 is correctly delivered and readable as 1?**
 
-1. resolve the literal contents/names of global bundle-key `std::string` objects at `0x135a0` and `0x135b8` (mainly documentation/correlation, not expected root cause);
-2. use available `.gnu_debugdata` mini-debug information to name the two callback/thunk functions and vtable symbols precisely if possible.
-
-After that, stop treating event transport as the likely root cause and pivot to other capability/availability inputs used by HVAC/system backend, while preserving this chain as PROVEN.
+Potentially relevant existing anchors include Fragrance-specific HVAC/VDBus IDs such as `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, fragrance type/level/state events, and any additional capability/state consumed by the HVAC UI. These are investigation targets only, not yet root cause.
 
 ## Next step
 
-Extract and inspect `.gnu_debugdata` from `com.desaysv.vehicledevice@1.0-service` to recover local symbol names/vtable labels and, if available, the global names/initializers associated with `0x135a0` / `0x135b8`. Do not broaden the search until that targeted symbol pass is complete.
+Pivot away from event-918905 transport. Perform one targeted static reference audit of the current RU02 HVAC decompile for all Fragrance-specific runtime inputs beyond config50, especially consumers/handlers related to Fragrance display/state/warning/type/level events. The goal is to identify the smallest additional runtime predicate capable of leaving `fragrance_btn` hidden while `OfflineConfigManager.f()` is true.
 
-When the vehicle becomes available again, pull/hash live HVAC/CarInfo APKs and reconcile artifact identity.
+Do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
+
+When the vehicle becomes available again, pull/hash live HVAC/CarInfo APKs and reconcile artifact identity before any runtime experiment that depends on exact APK identity.
