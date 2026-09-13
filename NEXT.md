@@ -6,26 +6,32 @@ Identify the system/backend condition on dealer RU firmware 00.00.02 that blocks
 
 ## Current state
 
-RU02 framework-level config flow is mapped through `VehicleDevice` event `918905` -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC Fragrance predicate.
+The RU06 vs RU02-labeled HVAC application delta is effectively closed as a Fragrance discriminator. The framework config path is now mapped through `CarConfigUtil` and `EolConfig`, and the VDBus event source is identified as `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
 
-Two manually selected APK candidates have now been conclusively closed as implementation owners:
+Exact class ownership localization has progressed:
 
-- `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk`
-- `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk`
+- `DesaySVProjectService.apk` does not define VehicleDevice.
+- `SVVDSCarStateService.apk` does not define VehicleDevice; it contains only client-side `VehicleDeviceManager`.
+- Exact DEX `class_def` scanning was run across all APKs in RU02 `system/app`, `system/priv-app`, `product/app`, and `product/priv-app`.
+- 88 APKs were checked for descriptor `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`.
+- Zero exact owners were found.
 
-Both contain raw references to `com.desaysv.ivi.vds.vdev.service.VehicleDevice`, but JADX source-tree verification shows neither defines that class. `SVVDSCarStateService` contains only a client-side `VehicleDeviceManager`.
-
-Therefore manual package-name guessing is no longer useful.
+Therefore do not continue manual APK-name guessing and do not infer ownership from raw DEX strings.
 
 ## Next step
 
-1. Perform an automated exact class-definition search across RU02 Android artifacts, beginning with all APKs in `system` and `product`.
-2. Search for actual ownership of `com/desaysv/ivi/vds/vdev/service/VehicleDevice`, not raw DEX strings.
-3. If not found in `system`/`product`, extract/search `system_ext` and relevant framework JARs next.
-4. Once the owning artifact is found, fingerprint it, inspect manifest/package metadata, decompile only that artifact, and trace where event `918905` is produced and how `vehicle.persist.project.ext.configs` is sourced/filtered.
-5. Follow into `VehicleService` only if the real VehicleDevice implementation directly requires it.
+1. Extract RU02 `system_ext.img` from the existing `payload.bin` if not already extracted.
+2. Expand exact class-definition search to:
+   - `system_ext` APKs and JARs;
+   - `/system/framework` JARs;
+   - `/product/framework` JARs;
+   - `/system_ext/framework` JARs.
+3. Use the same exact DEX class-table test for `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`, not a raw string grep.
+4. If an exact owner is found, fingerprint and decompile only that owner, then trace event `918905` production plus origin/filtering of `vehicle.persist.project.ext.configs`.
+5. If no owner is found in those Java archives, next investigate preoptimized/oat/apex/native service packaging rather than returning to application APKs.
+6. Follow into `VehicleService` only where the actual VehicleDevice implementation/reference graph requires it.
 
-When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile labels before any package replacement experiment.
+When the vehicle is available again, pull/hash live CarInfo/HVAC APKs and reconcile labels before any package replacement experiment.
 
 ## Guardrails
 
