@@ -31,6 +31,7 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - Current HVAC contains Fragrance classes/resources/UI logic. RU06 vs RU02-labeled HVAC DEX/manifest/resource differences do not explain missing Fragrance.
 - Older correctly signed RU05 HVAC executed on RU02 system base but still did not restore Fragrance; APK replacement alone is not a solution.
 - Current `bottom_layout.xml` declares `fragrance_btn` as `GONE`; investigated binding/code has no proven visibility path. `a2(fragranceBtn,z)` controls enabled/clickable only.
+- The local RU02-labeled HVAC artifact used for the current static runtime-input audit is verified by SHA-256: `2819ccafd364fb46bf06c492932fdc6fb4768c75705d243ef66b0c6518ce765a` (`SVHvac_RU02_2026.apk`). This verifies artifact identity against the existing local hash ledger, not yet against a fresh live pull from the canonical vehicle.
 
 ### Framework backend path
 
@@ -103,6 +104,18 @@ PROVEN end-to-end static transport chain:
 
 No country/project/market/telematics filter has been found in this traced transport path itself.
 
+### Current HVAC runtime-input audit
+
+The first broad static audit of the verified RU02-labeled HVAC artifact produced these narrow observations:
+
+- no semantic reference named `FragranceDisplay` or `FragranceWarning` was found in the generated audit, and the explicit numeric candidate section for IDs 58/59/60/61/62/64/66/71/76/88 was empty;
+- this does NOT prove those states are unused because the real presenter/backend classes are obfuscated and the grep-oriented audit was biased toward files already containing Fragrance text;
+- visible Fragrance UI callbacks found in `HvacContentView` / `T1HHvacActivity` handle power state by selecting `fragranceBtn` (`setSelected`) rather than changing its visibility;
+- `FragranceDialog` callbacks handle power, level, type, remaining amount and position/installed-state behavior; these are operational state handlers and no evidence from this audit ties them to making the main `fragrance_btn` VISIBLE;
+- `FragranceDialog` uses presenter type `b.a.d.a.b.x0`; activity/view code labels the same object `mFragrancePresenter` and calls methods such as `l()`, `n()`, `o()`, `p()`, `q()`, `u()`, `w()`, `x()`.
+
+Therefore the next static target is the obfuscated `b.a.d.a.b.x0` FragrancePresenter and its callback/subscription interfaces, not a preselected assumption that `AC_FRAGRANCE_DISPLAY` is the missing gate.
+
 ## DISPROVEN / closed unless new evidence
 
 - Engineering writes the wrong Fragrance bit.
@@ -131,12 +144,18 @@ The project-config transport mechanism is statically closed. The active question
 
 **What other RU02 Fragrance availability/capability input keeps the OEM UI hidden even though config50 is correctly delivered and readable as 1?**
 
-Potentially relevant existing anchors include Fragrance-specific HVAC/VDBus IDs such as `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, fragrance type/level/state events, and any additional capability/state consumed by the HVAC UI. These are investigation targets only, not yet root cause.
+The immediate sub-question is: what does `b.a.d.a.b.x0` subscribe to/read, and does it expose an additional availability/display state separate from ordinary fragrance power/type/level/remain state?
 
 ## Next step
 
-Pivot away from event-918905 transport. Perform one targeted static reference audit of the current RU02 HVAC decompile for all Fragrance-specific runtime inputs beyond config50, especially consumers/handlers related to Fragrance display/state/warning/type/level events. The goal is to identify the smallest additional runtime predicate capable of leaving `fragrance_btn` hidden while `OfflineConfigManager.f()` is true.
+Trace the current RU02 HVAC `b.a.d.a.b.x0` FragrancePresenter end-to-end:
 
-Do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
+1. inspect the complete `x0.java` source and identify superclass/interfaces/callback registrations;
+2. map public methods `l()/n()/o()/p()/q()/u()/w()/x()` and any other methods to underlying CarInfo/HVAC/VDBus reads/writes;
+3. enumerate every event/property ID or proxy method used by x0, including registrations and initial reads;
+4. inspect x0 callback interface implementations/consumers to determine whether any state controls availability/visibility rather than operational status;
+5. only after a concrete candidate predicate is found, trace its producer into CarInfo/VDBus/native backend.
+
+Do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching. Do not treat `AC_FRAGRANCE_DISPLAY` as root cause without a concrete x0/callback consumer path.
 
 When the vehicle becomes available again, pull/hash live HVAC/CarInfo APKs and reconcile artifact identity before any runtime experiment that depends on exact APK identity.
