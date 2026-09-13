@@ -6,27 +6,23 @@ Identify the system/backend condition on dealer RU firmware 00.00.02 that blocks
 
 ## Current state
 
-The RU06 vs RU02-labeled HVAC application delta is effectively closed as a Fragrance discriminator. The framework config path is mapped through `CarConfigUtil` and `EolConfig`, and VDBus identifies the event source as `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
+The HVAC application delta is closed as a Fragrance discriminator. Framework config flow is mapped through `CarConfigUtil` / `EolConfig`, and VDBus identifies event source `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
 
-Exact class ownership localization now excludes ordinary Java containers in three partitions:
+Exact class ownership localization currently shows:
 
-- 88 APKs across `system/app`, `system/priv-app`, `product/app`, `product/priv-app`: zero exact owners.
-- `system_ext.img` extracted read-only; SHA-256 `1b9902976b45277875d4a9b79d49fa4a26599dc9cdb682459c5fa1acfe47582b`.
-- Expanded exact DEX `class_def` scan across `system/framework`, `product/framework`, `system_ext/framework`, plus `system_ext` app/priv-app locations checked 102 Java archives total.
-- Zero exact definitions of `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;` were found.
-
-Therefore do not return to manual APK-name guessing or raw string greps.
+- 88 APKs across `system/app`, `system/priv-app`, `product/app`, `product/priv-app`: zero exact VehicleDevice owners.
+- Expanded scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app: 102 Java archives checked, zero exact owners.
+- `vendor.img` extracted successfully: ~348.9 MB, SHA-256 `b1e7e189033a7d4347b2c730263d535955b783cb48a1a3226b6f0e8c4a9ef283`.
+- First vendor scan is inconclusive because only 1 archive was actually reached by the traversal logic. Do NOT mark vendor negative from that run.
 
 ## Next step
 
-1. Extract RU02 `vendor.img` from the existing payload read-only.
-2. Record vendor image SHA-256 and root layout.
-3. Run the same exact DEX `class_def` search for `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;` across vendor APK/JAR locations:
-   - `/app`, `/priv-app`, `/framework`;
-   - `/vendor/app`, `/vendor/priv-app`, `/vendor/framework` if the image contains an inner `/vendor` directory.
-4. If an exact owner is found, fingerprint and decompile only that owner, then trace event `918905` production and the origin/filtering of `vehicle.persist.project.ext.configs`.
-5. Only if vendor also has zero exact owner, investigate OAT/VDEX/APEX/native/system-service packaging and boot/preopt class ownership.
-6. Follow into `VehicleService` only where the actual VehicleDevice implementation/reference graph requires it.
+1. Inspect the full vendor root/directory layout from the already-generated `RU02_VehicleDevice_vendor_owner_scan.txt` and enumerate actual locations of APK/JAR/preopt files.
+2. Fix vendor traversal to cover every real APK/JAR location rather than assuming `/app`, `/priv-app`, `/framework` only.
+3. Repeat exact DEX `class_def` search for `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;` across all discovered vendor Java containers.
+4. Also inventory nearby `.odex`, `.vdex`, `.oat`, and `.apex` files so escalation is evidence-driven if ordinary vendor archives remain negative.
+5. Only after exhaustive vendor coverage should investigation move to OAT/VDEX/APEX/native/system-service packaging.
+6. If an exact owner is found, stop broad scanning and decompile only that owner to trace event `918905` and `vehicle.persist.project.ext.configs` production/filtering.
 
 When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile labels before any package replacement experiment.
 
