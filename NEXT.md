@@ -26,13 +26,21 @@ The config update path is now mapped:
 6. `VDServiceDef` names the event source as system service `com.desaysv.ivi.vds.vdev.service.VehicleDevice` in package `com.desaysv.ivi.vds.vdev`.
 7. `VehicleService` is a separate HAL-facing service: `com.desaysv.ivi.vds.vehicle.service.VehicleService` under `android.hardware.automotive.vehicle@2.0-service`.
 
+The RU02 application inventory does not expose a top-level app directory literally named `VehicleDevice` or `vdev`. The strongest containers to verify next are:
+
+- `/system/priv-app/DesaySVProjectService` — strongest system-service candidate;
+- `/product/app/SVVDSCarStateService` — secondary VDS-service candidate;
+- other `/product/app/SVVDS*` packages remain fallback candidates only if neither manifest/class scan contains `com.desaysv.ivi.vds.vdev`.
+
 ## Next step
 
-1. Locate the actual RU02 APK/package that implements `com.desaysv.ivi.vds.vdev.service.VehicleDevice` in the available firmware images (`product`, `system_ext`, or `system`).
-2. Extract only that package read-only and record hash/version/manifest.
-3. Decompile it and trace where event `918905` / `VDVDeviceConfigStore` is produced, especially the source of `vehicle.persist.project.ext.configs` and any project/market/telematics/capability filtering.
-4. Follow into `VehicleService` only if direct references from `VehicleDevice` require it.
-5. Do not broaden into unrelated framework jars until this service path is exhausted.
+1. Inspect only the two strongest candidate directories above and extract their APKs read-only.
+2. Record SHA-256 and package/version/manifest metadata.
+3. Search both APKs for the exact package/class strings `com.desaysv.ivi.vds.vdev` and `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
+4. Decompile only the APK that actually contains the VehicleDevice implementation.
+5. Trace where event `918905` / `VDVDeviceConfigStore` is produced, especially the source of `vehicle.persist.project.ext.configs` and any project/market/telematics/capability filtering.
+6. Follow into `VehicleService` only if direct references from `VehicleDevice` require it.
+7. Do not broaden into unrelated framework jars until this service path is exhausted.
 
 When the vehicle is available again, pull/hash live CarInfo/HVAC APKs and reconcile labels before any package replacement experiment.
 
