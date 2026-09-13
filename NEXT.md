@@ -8,29 +8,30 @@ Identify the system/backend condition on dealer RU firmware 00.00.02 that blocks
 
 Do not return to APK patching and do not install more packages yet.
 
-The internal-entry hash discriminator is complete. RU06 -> RU02 is a narrow package delta:
+The focused CarInfo RU06 vs RU02-labeled source diff is complete:
 
-- HVAC: 2948 identical entries, 6 changed, 0 added/removed. The Fragrance XML layouts are byte-identical. Changed payload is limited to DEX, manifest, resources table and signature metadata.
-- CarInfo: 593 identical entries, 5 changed, 0 added/removed. `resources.arsc` is byte-identical. Changed payload is limited to DEX, manifest and signature metadata.
-- RU06 and RU02 CarInfo DEX files are equal-size but not byte-identical.
+- only `com/desaysv/ivi/vds/carinfo/BuildConfig.java` differs in generated Java;
+- the only shown Java delta is `VERSION_NAME`;
+- the normalized JADX WARN/ERROR reports are identical as 662-line multisets, including the same AndroidX `DiffUtil.java:107` RegionMakerVisitor failure;
+- therefore there is currently no evidence of a functional application-code difference in CarInfo between these two artifacts.
 
-Immediate read-only task:
+However a more important artifact-identity inconsistency is now open: the earlier live vehicle `dumpsys package com.desaysv.ivi.vds.carinfo` versionName (`Chery-8155_11_e5fc2d4_2025-09-26_2509261457_R`) matches the local artifact labeled RU06, whereas the local artifact labeled RU02-TEL-2026 decompiles with versionName `Chery-8155_11_8f9dc0d_2026-04-10_2604101647_R`.
 
-1. Decompile RU06 and RU02 `SVVDSCarInfo` with the same JADX version.
-2. Produce a recursive source-file diff and list only changed Java classes.
-3. Repeat for RU06 and RU02 HVAC.
-4. Inspect only those changed classes for Fragrance, config50, VDBus, VehicleDevice/VehicleService, market/model, telematics, capability/support/availability gating, and startup/config refresh behavior.
-5. Decode/diff the two AndroidManifests and only then inspect `resources.arsc` deltas in HVAC if code diff does not explain the change.
+Immediate read-only discriminator:
 
-Use RU05 afterward as the older reference architecture to understand any changed class or contract found in RU06/RU02; do not start with a full RU05 source-tree diff because the generation delta is much larger.
+1. pull the live `com.desaysv.ivi.vds.carinfo` APK from the canonical T1J RU02 vehicle;
+2. calculate its SHA-256 and capture live `versionName/versionCode`;
+3. compare against the local RU06 and RU02-TEL-2026 CarInfo hashes;
+4. correct artifact labels if needed;
+5. only then perform the focused HVAC source diff using the artifact that is proven to correspond to the live RU02 stack.
 
-After the focused class diff, decide whether the next target is a concrete changed application class or system/framework/shared-library resolution (`vdbus_extra.jar`, VehicleDevice, VehicleService).
+After live identity is resolved, continue with changed HVAC classes first; if the HVAC code delta is only build metadata too, pivot directly to system/framework/shared-library resolution (`vdbus_extra.jar`, VehicleDevice, VehicleService) instead of further APK replacement.
 
 ## Guardrails
 
 - Canonical bench: T1J RU dealer 00.00.02 with telematics.
 - No blind VDBus/property writes.
 - No unsigned system APK patch path.
-- No package replacement until the static diff produces a concrete hypothesis.
+- No package replacement until the static/live identity is established.
 - Do not import D08/00.00.08 conclusions as facts.
 - Do not reopen DISPROVEN hypotheses without new evidence.
