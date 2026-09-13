@@ -29,33 +29,26 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - `libdesaysv_vehicledevice.so` exports project-config handlers including `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, and `setVehiclePropertyConfigCallback`.
 - `VehicleHal::setProjectExtConfigs(key,value)` suppresses empty/unchanged values, stores changed values, updates EOL cache state and forwards the same key/value to the registered callback.
 - `VehicleHal::onVehiclePropertyConfigChange(key,value)` logs and forwards the same pair; no country/project/market/telematics gate is present in that forwarding function.
-- Embedded `.gnu_debugdata` decompresses to an unstripped AArch64 mini-ELF with the same BuildID as the service.
-- Mini-debug names `0x7b28` exactly as `VehicleDeviceVDS::onVehiclePropertyConfigChange(const std::string&, const std::string&)` and reports function size 252 bytes.
-- Mini-debug names `0x7c24` exactly as a `non-virtual thunk to VehicleDeviceVDS::onVehiclePropertyConfigChange(...)`; it is not a second semantic callback implementation.
-- Mini-debug identifies `0x11040` as `vtable for ...::VehicleDeviceVDS`, size 336 bytes.
-- In the real callback `x20` is original `proKey`, `x19` is original `proValue`.
-- The event object is built on the stack; event ID `918905` (`0x000E0579`) is stored at `sp+4`; a `VehicleBusBundle` is constructed at `sp+0x10`.
-- First bundle insertion is `VehicleBusBundle::putString(global_0x135a0, proKey)`; second is `VehicleBusBundle::putString(global_0x135b8, proValue)`. Thus payload values are exactly the upstream callback key/value pair.
-- Mini-debug did not expose names for global `std::string` bundle-key objects `0x135a0` and `0x135b8`; their literal field names remain unresolved but are no longer a root-cause blocker.
-- Final publication call is PROVEN: callback loads the object's vptr, loads virtual slot `+0x38`, and executes `blr`; the primary address point is `0x11050`, so the slot is `0x11088`; ELF relocation `0x11088` is exactly `VehicleBusStub::publish(VehicleBusEvent const&)`.
-- Therefore `blr` at `0x7bec` is definitively `VehicleBusStub::publish(event)`.
-- PROVEN static transport chain: `VehicleHal(key,value) -> VehicleDeviceVDS::onVehiclePropertyConfigChange(key,value) -> event 918905 -> two-string key/value bundle -> VehicleBusStub::publish -> framework event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
-- No country/project/market/telematics filter has been found in this traced transport path.
-- Current static HVAC audit used local `SVHvac_RU02_2026.apk` with SHA-256 `2819ccafd364fb46bf06c492932fdc6fb4768c75705d243ef66b0c6518ce765a`, matching the established local RU02-labeled artifact hash.
-- In the generated runtime-input audit, no semantic `FragranceDisplay` / `FragranceWarning` reference was found and the explicit numeric candidate scan for IDs 58/59/60/61/62/64/66/71/76/88 returned no direct cases. This is a result of the audit, not proof that the backend states are unused.
+- Embedded `.gnu_debugdata` proves the native callback/publication bridge: `VehicleDeviceVDS::onVehiclePropertyConfigChange(...)` builds event `918905`, inserts original key/value, and publishes through `VehicleBusStub::publish(event)`.
+- PROVEN static transport chain: `VehicleHal(key,value) -> VehicleDeviceVDS callback -> event 918905 -> VehicleBusStub::publish -> framework event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
+- Current static HVAC audit uses local `SVHvac_RU02_2026.apk` SHA-256 `2819ccafd364fb46bf06c492932fdc6fb4768c75705d243ef66b0c6518ce765a`, matching the established local RU02-labeled artifact hash.
 - `HvacContentView` Fragrance power callback changes `fragranceBtn` selected state via `setSelected(z)`; it does not make the button visible.
-- `FragranceDialog` callbacks visible in the audit handle Fragrance power, level, type, remaining amount and position/installed-state behavior; no direct main-button visibility change was identified there.
-- `b.a.d.a.b.x0` is exactly `FragrancePresenter`. It extends the generic presenter with model type `b.a.b.a.b.b` (`IFragranceModel`).
-- `x0` contains no CarInfo/VDBus property IDs and no visibility/capability branch. It is a thin presenter over the model: `b()` returns `b.a.b.a.c.e.b()`, registration uses `d().x0(listener); d().a()`, cleanup uses `d().b(); d().o(listener)`, and all nine model callbacks are forwarded to registered listeners/view without filtering.
-- `x0` getter mapping is direct: `k()->model.r()`, `l()->m0()`, `m()->F0()`, `n()->E()`, `o()->H()`, `p()->f0()`, `q()->h()`, `r()->z()`, `s()->P()`. Setters/actions are `t(i)->B0(i)`, `u(i)->l(i)`, `v(z)->B(z)`, `w()->c()`.
-- UI usage identifies the operational semantics strongly enough for the current trace: `k()` = fragrance level, `l()` = current fragrance position, `m()` = power/on-off state, `n/o/p()` = cartridge remain 1/2/3, and `q/r/s()` = cartridge/type status 1/2/3. The callbacks mirror these ordinary operational states.
-- Therefore `x0` itself is not the missing Fragrance visibility gate; the next concrete layer is the `IFragranceModel` implementation returned by factory `b.a.b.a.c.e.b()`.
+- `FragranceDialog` callbacks handle power, level, type, remaining amount and position/installed-state behavior; no direct main-button visibility change was identified there.
+- `b.a.d.a.b.x0` is exactly `FragrancePresenter`; it contains no CarInfo/VDBus IDs and no visibility/capability branch. It directly delegates to `IFragranceModel` and forwards callbacks.
+- `ModelFactory.b()` (`b.a.b.a.c.e.b()`) returns singleton `new b()` where `b.a.b.a.c.b` is compiled as `FragranceModel`.
+- `FragranceModel` implements `IFragranceModel` and `CarInfoHelper.ISpiListener`.
+- `FragranceModel` listens only to CarInfo module `327690` with exact command array `{58,59,60,61,62,71,92,93,94}`.
+- `J0()` registers that exact set with `CarInfoHelper.listen(327690, ids)`; `K0()` initial-reads exactly the same set when CarInfo is connected.
+- Exact callback mapping: 58=type1, 59=type2, 60=type3, 61=power, 62=level, 71=position/channel, 92=remain1, 93=remain2, 94=remain3.
+- Exact getter mapping uses the same IDs: `h=58`, `z=59`, `P=60`, `F0=61`, `r=62`, `m0=71`, `E=92`, `H=93`, `f0=94`.
+- FragranceModel writes only IDs 61 (power), 62 (level), and 71 (position/channel) with `CarInfoProxy.sendItemValue(327690, id, value)`.
+- IDs 64 (`AC_FRAGRANCE_DISPLAY`), 66 (`AC_FRAGRANCE_WARNING`), 76 (welcome fragrance), and 88 (happy-egg fragrance) are not part of the actual FragranceModel subscription/read/write path.
+- Therefore the traced FragrancePresenter/FragranceModel path contains ordinary operational state only and no second display/availability/capability input.
 
 ## LIKELY
 
-- Global bundle-key strings `0x135a0` and `0x135b8` correspond to the framework bean's property-key and property-value field names. Their values are PROVEN; only literal key-name text remains unknown.
-- The remaining Fragrance blocker is outside the now-closed project-config transport path and is more likely another capability/runtime state input consumed by HVAC/framework/UI.
-- If a separate display/availability predicate exists in the HVAC application path, it is now more likely to reside in the concrete `IFragranceModel` implementation or below it than in `FragrancePresenter`/view code.
+- The remaining Fragrance blocker is outside the closed project-config transport and presenter/model operational-state path.
+- Because the base `bottom_layout.xml` declares `fragrance_btn` as `GONE` and no proven in-code visibility setter has been found, the next high-value area is UI/resource activation: qualified layout selection, resource overlays, or an unexamined construction path using `OfflineConfigManager.f()`.
 
 ## DISPROVEN
 
@@ -74,23 +67,19 @@ Do not reopen without new contradictory evidence:
 - `DesaySVProjectService.apk` implements VehicleDevice.
 - `SVVDSCarStateService.apk` implements VehicleDevice.
 - Event `918905` exists only in Java/framework space.
-- The 918905 path should contain a direct `bl VehicleBusStub::publish@plt`; it publishes through vtable slot `+0x38` mapped by relocation `0x11088`.
-- `0x7c24` is a second independent publication implementation; mini-debug proves it is only a non-virtual thunk to `0x7b28`.
-- The traced VehicleDevice callback/publication bridge visibly applies a country/project/market/telematics filter before publishing the project config pair.
-- Failure of project-config/event-918905 transport is the working explanation for hidden Fragrance despite current evidence showing config50=1 at HVAC startup.
-- `AC_FRAGRANCE_DISPLAY` is already proven to be the missing visibility gate. The current audit found no concrete consumer path for that conclusion.
-- `b.a.d.a.b.x0` / `FragrancePresenter` contains the hidden visibility/capability gate. Its code is direct model delegation and callback fan-out with no such condition.
+- Failure of project-config/event-918905 transport is the working explanation for hidden Fragrance despite config50=1.
+- `AC_FRAGRANCE_DISPLAY` is already proven to be the missing visibility gate.
+- `FragrancePresenter` contains the hidden visibility/capability gate.
+- The actual RU02 HVAC `FragranceModel` consumes ID64/66/76/88 as a second availability/display gate.
 
 ## OPEN
 
-- Which actual RU02 condition prevents Fragrance from becoming available despite config50=1?
-- Which concrete class is returned by `b.a.b.a.c.e.b()` as the `IFragranceModel` implementation?
-- Which CarInfo/HVAC/VDBus properties/events does that model subscribe to and expose through `r/m0/F0/E/H/f0/h/z/P`?
-- Does the concrete model or its lower proxy contain an additional availability/display state separate from power/type/level/remain/position state?
-- Do `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, or another backend state enter the path at the model layer?
+- Which actual RU02 UI/resource mechanism makes or should make `fragrance_btn` visible when config50=1?
+- Is there an unexamined `OfflineConfigManager.f()` call-site controlling layout construction or resource selection?
+- Are there qualified alternate `bottom_layout` resources with different initial visibility?
+- Is a runtime resource overlay / product/vendor overlay expected to target `com.desaysv.svhvac` or the relevant layout/resource?
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
-- Literal initialized names of bundle-key globals `0x135a0` / `0x135b8` remain unresolved, but this is documentation-only unless contradictory evidence appears.
 
 ## Constraints
 
