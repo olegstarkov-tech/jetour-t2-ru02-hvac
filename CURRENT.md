@@ -51,9 +51,9 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - Exact DEX `class_def` scan across 88 APKs in `system/app`, `system/priv-app`, `product/app`, `product/priv-app` found zero definitions of `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`.
 - Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app locations checked 102 archives and also found zero exact owners.
 - `DesaySVProjectService.apk` and `SVVDSCarStateService.apk` were explicitly decompiled and DISPROVEN as VehicleDevice owners.
-- First vendor scan is NOT conclusive: although `vendor.img` extraction succeeded, the scanner reached only 1 archive.
-- Vendor root layout is now inspected. It contains ordinary `/app` but, critically, also a dedicated top-level `/vehicle` directory. The first scanner did not traverse `/vehicle`, which explains why it reached only `/app/TimeService/TimeService.apk` and cannot support a negative vendor conclusion.
-- `/vehicle` is now the highest-priority candidate subtree for locating the actual `VehicleDevice` implementation before any escalation to OAT/VDEX/APEX/native hypotheses.
+- First vendor scan is NOT conclusive: although `vendor.img` extraction succeeded, scanner reached only one archive (`/app/TimeService/TimeService.apk`).
+- Vendor root contains top-level `/vehicle`, but direct inspection shows `/vehicle` contains only `/vehicle/etc` with `svp_tuner_hal_conf.xml` and `vehicle.hardkey.conf`; there is no APK/JAR/service container under `/vehicle` at the inspected depth.
+- Therefore `/vehicle` is not itself the missing Java owner location. Vendor still requires exhaustive recursive inventory rather than assumed Android app/framework paths.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -69,6 +69,8 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - Raw DEX string presence identifies the VehicleDevice implementation APK.
 - `DesaySVProjectService.apk` or `SVVDSCarStateService.apk` implements VehicleDevice.
 - Any scanned ordinary APK/JAR in RU02 `system`, `product`, or `system_ext` defines VehicleDevice.
+- The first vendor scan proves vendor lacks VehicleDevice. It does not; coverage was incomplete.
+- `/vehicle` contains the Java VehicleDevice implementation; current inspection shows only two config files under `/vehicle/etc`.
 
 ## Current open question
 
@@ -76,7 +78,7 @@ Where is the actual RU02 implementation of `com.desaysv.ivi.vds.vdev.service.Veh
 
 ## Next step
 
-Inspect the dedicated vendor `/vehicle` subtree read-only, enumerate its immediate contents and nearby APK/JAR/OAT/VDEX/native files, then run exact ownership search only across that subtree. Do not treat vendor as negative and do not escalate to OAT/VDEX/APEX/native packaging until `/vehicle` has been covered.
+Recursively export/inventory the complete RU02 `vendor.img` filesystem to a normal WSL ext4 directory, then enumerate all `.apk`, `.jar`, `.odex`, `.vdex`, `.oat`, `.apex`, `.rc`, native executables/libraries and strings referencing `vdev`, `VehicleDevice`, `com.desaysv.ivi.vds.vdev`, or event 918905. Use exact DEX class-definition testing on every discovered APK/JAR. Only after exhaustive vendor coverage should investigation move to OAT/VDEX/APEX/native/system-service packaging outside vendor.
 
 When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile local artifact labels.
 
