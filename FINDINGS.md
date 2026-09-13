@@ -23,12 +23,15 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - Therefore the decoded T1J base-layout/generated-binding/inspected-view path contains no `config50 -> fragrance_btn VISIBLE` activation path.
 - T1H control branch differs: `t1h_bottom_layout_new.xml` has no initial `GONE`, and `T1hBottomLayoutNewBindingImpl` contains both `OfflineConfigManager.f()` and explicit `fragranceBtn.setVisibility(...)`.
 - T1H generated visibility logic is not a simple transferable activation formula for T1J; nearby generated branches also consume unrelated config predicates. `OfflineConfigManager.c()` is config104 / `isBehindSeatHeatExist`.
+- Static overlay scan across available RU02 `system`, `product`, `system_ext`, and `vendor` partition images found exactly 2 overlay APKs in the standard overlay directories.
+- Both scanned overlay APK manifests target package `android`.
+- No scanned static overlay targets `com.desaysv.svhvac`; no static RU02 RRO was found that overrides HVAC `bottom_layout`, `fragrance_btn`, or its visibility.
 
 ## LIKELY
 
-- The leading remaining static explanation is T1J UI/resource implementation asymmetry: the config/backend/operational Fragrance stack exists, but the T1J entry ships hidden and the inspected T1J binding never exposes it.
-- An external RU02 RRO/resource overlay is the last strong alternative that could make the hidden T1J layout entry visible without an in-APK setter.
-- If no HVAC-targeting overlay exists in RU02 system/product/system_ext/vendor, the T1J UI implementation omission/defect becomes the leading root-cause finding.
+- The leading static root-cause explanation is a T1J UI implementation omission/asymmetry: Fragrance config/backend/model exists and config50 reaches HVAC, but the T1J entry ships `GONE` and the T1J generated binding does not expose it.
+- Because the static HVAC-targeting RRO alternative is now closed, this omission is substantially stronger than the previous backend/display-ID hypotheses.
+- Final root-cause closure should still reconcile the older signed RU05 HVAC A/B result and later confirm that no runtime/dynamic overlay is active on the live vehicle.
 
 ## DISPROVEN
 
@@ -45,13 +48,13 @@ Do not reopen without new contradictory evidence:
 - ID64 is already proven as the missing gate.
 - The real FragranceModel consumes 64/66/76/88 as an extra availability gate.
 - T1J `BottomLayoutBindingImpl` contains a hidden `OfflineConfigManager.f()` or `fragranceBtn.setVisibility()` activation path.
+- A static RU02 overlay in the scanned system/product/system_ext/vendor overlay directories targets `com.desaysv.svhvac` and unhides the Fragrance entry.
 
 ## OPEN
 
-- Does RU02 contain a static RRO/resource overlay targeting `com.desaysv.svhvac`?
-- If so, does it override `bottom_layout`, `fragrance_btn`, visibility, or a resource used by that layout?
-- If not, was the T1J Fragrance entry simply omitted from the visibility binding in this HVAC generation?
-- Why did older signed RU05 HVAC also fail on the RU02 system base?
+- Did RU05 T1J HVAC already contain the same `fragrance_btn=GONE` + missing binding visibility path?
+- If RU05 has a real T1J visibility path, why did that signed old HVAC still fail on the RU02 system base?
+- Is any runtime/dynamic overlay active on the live vehicle outside the static partition images? Pending `cmd overlay list --user 0 com.desaysv.svhvac` when vehicle access returns.
 - Which local HVAC/CarInfo artifacts are byte-exact with the live canonical vehicle? Live reconciliation remains pending until vehicle access returns.
 
 ## Constraints
