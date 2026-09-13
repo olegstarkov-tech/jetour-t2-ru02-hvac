@@ -22,28 +22,26 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - `CarConfigUtil.init()` subscribes to VehicleDevice event `918905` (`PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`).
 - On event `918905`, payload is decoded through `VDVDeviceConfigStore`; key `vehicle.persist.project.ext.configs` updates EOL config via `EolConfig.updateConfig(...)`.
 - `CarConfigUtil.getConfig(int)` directly delegates to `EolConfig.getJetourEolConfig(int)`; no extra Fragrance-specific gate exists there.
-- `VDServiceDef` identifies event producer `com.desaysv.ivi.vds.vdev.service.VehicleDevice`; `VehicleService` is separately HAL-facing.
 - Framework-level config update chain is PROVEN: `VehicleDevice` event 918905 -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC Fragrance predicate.
-- Exact DEX `class_def` scan checked 88 RU02 APKs across `system/app`, `system/priv-app`, `product/app`, and `product/priv-app`; zero exact VehicleDevice owners found.
-- Expanded exact scan across `system/framework`, `product/framework`, `system_ext/framework`, and `system_ext` app/priv-app paths checked 102 Java archives; zero exact owners found.
-- Full recursive vendor inventory shows only 2 APKs, 0 JARs, 1 ODEX, 1 VDEX, 0 OAT and 0 APEX; there is no hidden vendor Java implementation population to explain VehicleDevice ownership.
-- Vendor contains a dedicated native VehicleDevice stack: `/bin/hw/com.desaysv.vehicledevice@1.0-service`, `/etc/init/com.desaysv.vehicledevice@1.0-service.rc`, `/lib64/com.desaysv.vehicledevice@1.0.so`, `/lib64/libdesaysv_vehicledevice.so`, plus `libdesaysv_vehiclebus.so` and backend libraries.
-- The native VehicleDevice service executable directly links `libdesaysv_vehiclebus_backend_aidl.so`, `libdesaysv_vehiclebus_backend_aosp.so`, `libdesaysv_vehiclebus.so`, `libdesaysv_vehicledevice.so`, `com.desaysv.vehicledevice@1.0.so`, and `android.hardware.automotive.vehicle@2.0.so`.
-- The service executable imports `VehicleBusStub::get/set/bulkGet/publish/subscribe/unsubscribe` and `VehicleBusBundle` accessors, proving the native service directly participates in the VehicleBus publish/subscribe layer.
-- The service binary contains `vdev.service.VehicleDevice|vehiclebus` and `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`.
-- `libdesaysv_vehicledevice.so` exports `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, `setVehiclePropertyConfigCallback`, and related project-config handlers.
-- `VehicleHal::setProjectExtConfigs(key,value)` compares against the old value, ignores empty/unchanged updates, writes changed values to `VehicleConfigStore`, updates EOL cache state for ext-config keys, then forwards the same key/value through the registered callback.
-- `VehicleHal::onVehiclePropertyConfigChange(key,value)` only logs and forwards the same key/value to the callback; no country/project/market/telematics gate is present in that forwarding function.
-- `libdesaysv_vehicledevice.so` contains the persistent project keys `vehicle.persist.project.ext.configs` through `ext.configs9`, project code/PN/phonelink keys, `countryCode`, and `ro.sys.ivi.eol.country.code`.
-- Targeted service disassembly proves native construction of event ID `918905` (`0x000E0579`) at two sites: `0x7ba8/0x7bb0` and `0x7ca4/0x7cac`.
-- In the first 918905 block, `VehicleBusBundle::putString(...)` is called at `0x7bc4` and `0x7bd8`; in the second it is called at `0x7cc0` and `0x7cd4`. Therefore the service-side 918905 path constructs a two-string bundle.
-- The two 918905 sites are in the same local service region as xrefs to the exact `VehicleDeviceVDS::onVehiclePropertyConfigChange` log string. Therefore event `918905` is constructed in native VehicleDevice service glue, not only represented as a Java framework constant.
-- `readelf -rW` shows `VehicleBusStub::publish(VehicleBusEvent const&)` through an `R_AARCH64_ABS64` relocation at `0x11088`, while `VehicleBusStub::set(...)` has an ordinary `R_AARCH64_JUMP_SLOT` relocation. This explains why no direct `publish@plt` call appears in the narrow disassembly and strongly indicates an indirect function-pointer/table call path.
+- Exact DEX `class_def` scans across ordinary RU02 system/product/system_ext Java archives found no Java definition of `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`; `DesaySVProjectService.apk` and `SVVDSCarStateService.apk` are DISPROVEN as owners.
+- Full vendor inventory proves the relevant backend is native, not a hidden Java package.
+- Vendor contains `/bin/hw/com.desaysv.vehicledevice@1.0-service`, `/lib64/com.desaysv.vehicledevice@1.0.so`, `/lib64/libdesaysv_vehicledevice.so`, `libdesaysv_vehiclebus.so`, and related backend libraries.
+- `libdesaysv_vehicledevice.so` exports project-config handlers including `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, and `setVehiclePropertyConfigCallback`.
+- `VehicleHal::setProjectExtConfigs(key,value)` suppresses empty/unchanged values, stores changed values, updates EOL cache state and forwards the same key/value to the registered callback.
+- `VehicleHal::onVehiclePropertyConfigChange(key,value)` logs and forwards the same pair; no country/project/market/telematics gate is present in that forwarding function.
+- Native service blocks around `0x7b28` and `0x7c24` log `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s` and construct event ID `918905` (`0x000E0579`).
+- In those callback blocks `x20` is the original `proKey`, `x19` is the original `proValue`.
+- The event object is zero-initialized on stack; event ID `918905` is stored at `sp+4`; a `VehicleBusBundle` is embedded/constructed at `sp+0x10`.
+- First bundle insertion calls `VehicleBusBundle::putString(global_0x135a0, proKey)`; second calls `VehicleBusBundle::putString(global_0x135b8, proValue)`. Thus the bundle payload values are exactly the upstream callback key/value pair.
+- The literal names/content of the global `std::string` bundle keys at `0x135a0` and `0x135b8` are not yet resolved.
+- The final publication call is PROVEN: callback code loads primary vptr then virtual slot `+0x38` and executes `blr`; class vptr setup uses `0x11050`; `0x11050+0x38=0x11088`; relocation `0x11088` is exactly `R_AARCH64_ABS64 VehicleBusStub::publish(VehicleBusEvent const&)`.
+- Therefore `blr` at `0x7bec` is definitively `VehicleBusStub::publish(event)`. The second near-identical block uses the same slot after a `this` adjustment and is consistent with an ABI thunk/secondary-base entry point.
+- PROVEN static transport chain: `VehicleHal(key,value) -> VehicleDeviceVDS callback -> event 918905 -> two-string key/value bundle -> VehicleBusStub::publish -> framework event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
+- No country/project/market/telematics filter has been found in this traced transport path.
 
 ## LIKELY
 
-- The two strings inserted into the 918905 bundle are the upstream property key and property value, matching the `ISVPVehiclePropertyConfigCallback(key,value)` input and the framework-side `VDVDeviceConfigStore` consumer. Exact argument/string-key decoding is still required before upgrading this to PROVEN.
-- The final `VehicleBusStub::publish()` call is indirect through a data/function-pointer slot associated with relocation address `0x11088`; exact code xref is not yet proven.
+- Global bundle-key strings `0x135a0` and `0x135b8` correspond to the framework bean's property-key and property-value field names, but their literal initialized contents are not yet proven.
 
 ## DISPROVEN
 
@@ -61,19 +59,16 @@ Do not reopen without new contradictory evidence:
 - Raw DEX string presence is enough to identify the VehicleDevice implementation APK.
 - `DesaySVProjectService.apk` implements VehicleDevice.
 - `SVVDSCarStateService.apk` implements VehicleDevice.
-- Any scanned ordinary APK/JAR in RU02 `system`, `product`, or `system_ext` defines VehicleDevice.
-- `/vehicle` contains the Java VehicleDevice implementation.
-- Vendor needs another broad APK/JAR search; recursive inventory shows the backend is native.
-- Event `918905` exists only in Java/framework space; native service code explicitly materializes the same numeric ID.
-- The 918905 path should contain a direct `bl VehicleBusStub::publish@plt`; relocation evidence instead points to an indirect reference.
+- Event `918905` exists only in Java/framework space.
+- The 918905 path should contain a direct `bl VehicleBusStub::publish@plt`; it publishes through vtable slot `+0x38` mapped by relocation `0x11088`.
+- The traced VehicleDevice callback/publication bridge visibly applies a country/project/market/telematics filter before publishing the project config pair.
 
 ## OPEN
 
-- Which RU02 native condition prevents Fragrance from becoming available despite config50=1?
-- What exact service function/basic block owns the 918905/two-`putString` path?
-- What are the two bundle field names and which arguments are the property key/value?
-- Which code xref uses the `VehicleBusStub::publish` ABS64 relocation at `0x11088`, and does the 918905 callback reach it directly or through a wrapper/table?
-- Are country/project/product IDs, telematics, capability, or another condition used later in this exact service-side publication path?
+- Which actual RU02 condition prevents Fragrance from becoming available despite config50=1?
+- What are the literal initialized contents/names of bundle-key global `std::string` objects at `0x135a0` and `0x135b8`?
+- Can `.gnu_debugdata` recover precise local function/vtable names for the callback and thunk?
+- What capability/availability input outside this now-closed project-config transport path controls Fragrance visibility/activation?
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 
