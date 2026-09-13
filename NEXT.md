@@ -2,31 +2,28 @@
 
 ## Current objective
 
-Identify the RU02 native backend condition that blocks OEM Fragrance despite config50=1.
+Identify the real RU02 Fragrance availability/capability mechanism that keeps OEM Fragrance hidden despite config50=1.
 
 ## Current state
 
 - Framework config path is mapped through VehicleDevice event 918905 -> `VDVDeviceConfigStore` -> `CarConfigUtil` -> `EolConfig` -> config50.
-- Ordinary Java ownership search is negative across scanned `system`, `product`, `system_ext`, and vendor APK/JAR populations.
-- Full vendor inventory proves the relevant backend is native, not a hidden APK/JAR.
-- Native service `/vendor/bin/hw/com.desaysv.vehicledevice@1.0-service` links Android Automotive Vehicle HAL and Desay VehicleBus layers.
-- `libdesaysv_vehicledevice.so` proves the project-config callback flow and contains no country/project/market/telematics filter inside `VehicleHal::onVehiclePropertyConfigChange(key,value)` itself.
-- Native service explicitly constructs event 918905 (`0x000E0579`) at `0x7ba8/0x7bb0` and `0x7ca4/0x7cac`.
-- Each 918905 block immediately performs two `VehicleBusBundle::putString(...)` calls: `0x7bc4/0x7bd8` and `0x7cc0/0x7cd4` respectively.
-- `VehicleBusStub::publish()` is imported through an `R_AARCH64_ABS64` relocation at `0x11088`, not an ordinary PLT/JUMP_SLOT call. `VehicleBusStub::set()` does have a normal JUMP_SLOT/PLT entry.
-- Therefore the remaining native bridge problem is now very narrow: decode the two bundle string fields and prove the indirect call path through the `publish` slot.
+- Native project-config transport is now statically closed end-to-end.
+- `VehicleHal::setProjectExtConfigs/onVehiclePropertyConfigChange` forwards changed property key/value pairs without a country/project/market/telematics filter in the traced path.
+- Native `VehicleDeviceVDS` callback constructs event ID `918905`, inserts original `proKey` and `proValue` into a two-string `VehicleBusBundle`, then calls `VehicleBusStub::publish(event)` through vtable slot `+0x38`.
+- Primary class vptr is `0x11050`; slot `0x11088` is relocated directly to `VehicleBusStub::publish(VehicleBusEvent const&)`, proving the indirect call.
+- Bundle field-name objects are globals at `0x135a0` and `0x135b8`; their payload values are proven to be callback key/value, but literal field names remain unresolved.
+- Therefore missing Fragrance should no longer be attributed to failure of `vehicle.persist.project.ext.configs` event transport without new contradictory evidence.
 
 ## Next step
 
-Do one focused service-side trace only:
+Do one final targeted symbol pass on the same service binary before pivoting away from transport:
 
-1. disassemble `0x7b80-0x7d10` with enough raw register flow to recover arguments to all four `VehicleBusBundle::putString` calls;
-2. map any rodata/string constants loaded before those calls and identify the exact bundle field names;
-3. determine whether the two values passed are the callback property key/value;
-4. identify the ELF section containing relocation address `0x11088` and enumerate every code xref to that slot/page+offset;
-5. follow only those xrefs until the exact indirect branch/call to `VehicleBusStub::publish()` is proven;
-6. once the callback -> 918905 bundle -> publish edge is closed, inspect only conditional branches in that exact function/path for country/project/product/telematics/capability filtering.
+1. extract `.gnu_debugdata` from `/vendor/bin/hw/com.desaysv.vehicledevice@1.0-service`;
+2. decompress it and enumerate local symbols/vtables with `nm -C -n` / `readelf -Ws`;
+3. identify exact names for the callback at `0x7b28`, its secondary thunk around `0x7c24`, and the vtable beginning at `0x11050` if mini-debug data contains them;
+4. inspect xrefs/initializers for global `std::string` objects `0x135a0` and `0x135b8` to recover their literal field names if possible;
+5. once documented, stop spending effort on 918905 transport and pivot to other Fragrance capability/availability inputs in RU02 backend/framework/HVAC logic.
 
-Do not return to APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
+Do not return to broad APK guessing, OAT/VDEX hunting, blind property writes, or unsigned HVAC patching.
 
-When the vehicle is available again, reconcile live HVAC/CarInfo hashes with local artifacts and run only runtime tests implied by this static trace.
+When the vehicle becomes available again, reconcile live HVAC/CarInfo hashes with local artifacts and run only runtime tests implied by the static findings.
