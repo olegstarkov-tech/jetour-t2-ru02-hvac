@@ -29,19 +29,23 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - `libdesaysv_vehicledevice.so` exports project-config handlers including `VehicleHal::setProjectExtConfigs`, `requestProjectConfigs`, `onVehiclePropertyConfigChange`, and `setVehiclePropertyConfigCallback`.
 - `VehicleHal::setProjectExtConfigs(key,value)` suppresses empty/unchanged values, stores changed values, updates EOL cache state and forwards the same key/value to the registered callback.
 - `VehicleHal::onVehiclePropertyConfigChange(key,value)` logs and forwards the same pair; no country/project/market/telematics gate is present in that forwarding function.
-- Native service blocks around `0x7b28` and `0x7c24` log `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s` and construct event ID `918905` (`0x000E0579`).
-- In those callback blocks `x20` is the original `proKey`, `x19` is the original `proValue`.
-- The event object is zero-initialized on stack; event ID `918905` is stored at `sp+4`; a `VehicleBusBundle` is embedded/constructed at `sp+0x10`.
-- First bundle insertion calls `VehicleBusBundle::putString(global_0x135a0, proKey)`; second calls `VehicleBusBundle::putString(global_0x135b8, proValue)`. Thus the bundle payload values are exactly the upstream callback key/value pair.
-- The literal names/content of the global `std::string` bundle keys at `0x135a0` and `0x135b8` are not yet resolved.
-- The final publication call is PROVEN: callback code loads primary vptr then virtual slot `+0x38` and executes `blr`; class vptr setup uses `0x11050`; `0x11050+0x38=0x11088`; relocation `0x11088` is exactly `R_AARCH64_ABS64 VehicleBusStub::publish(VehicleBusEvent const&)`.
-- Therefore `blr` at `0x7bec` is definitively `VehicleBusStub::publish(event)`. The second near-identical block uses the same slot after a `this` adjustment and is consistent with an ABI thunk/secondary-base entry point.
-- PROVEN static transport chain: `VehicleHal(key,value) -> VehicleDeviceVDS callback -> event 918905 -> two-string key/value bundle -> VehicleBusStub::publish -> framework event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
+- Embedded `.gnu_debugdata` decompresses to an unstripped AArch64 mini-ELF with the same BuildID as the service.
+- Mini-debug names `0x7b28` exactly as `VehicleDeviceVDS::onVehiclePropertyConfigChange(const std::string&, const std::string&)` and reports function size 252 bytes.
+- Mini-debug names `0x7c24` exactly as a `non-virtual thunk to VehicleDeviceVDS::onVehiclePropertyConfigChange(...)`; it is not a second semantic callback implementation.
+- Mini-debug identifies `0x11040` as `vtable for ...::VehicleDeviceVDS`, size 336 bytes.
+- In the real callback `x20` is original `proKey`, `x19` is original `proValue`.
+- The event object is built on the stack; event ID `918905` (`0x000E0579`) is stored at `sp+4`; a `VehicleBusBundle` is constructed at `sp+0x10`.
+- First bundle insertion is `VehicleBusBundle::putString(global_0x135a0, proKey)`; second is `VehicleBusBundle::putString(global_0x135b8, proValue)`. Thus payload values are exactly the upstream callback key/value pair.
+- Mini-debug did not expose names for global `std::string` bundle-key objects `0x135a0` and `0x135b8`; their literal field names remain unresolved but are no longer a root-cause blocker.
+- Final publication call is PROVEN: callback loads the object's vptr, loads virtual slot `+0x38`, and executes `blr`; the primary address point is `0x11050`, so the slot is `0x11088`; ELF relocation `0x11088` is exactly `VehicleBusStub::publish(VehicleBusEvent const&)`.
+- Therefore `blr` at `0x7bec` is definitively `VehicleBusStub::publish(event)`.
+- PROVEN static transport chain: `VehicleHal(key,value) -> VehicleDeviceVDS::onVehiclePropertyConfigChange(key,value) -> event 918905 -> two-string key/value bundle -> VehicleBusStub::publish -> framework event 918905 -> VDVDeviceConfigStore -> CarConfigUtil -> EolConfig -> config50`.
 - No country/project/market/telematics filter has been found in this traced transport path.
 
 ## LIKELY
 
-- Global bundle-key strings `0x135a0` and `0x135b8` correspond to the framework bean's property-key and property-value field names, but their literal initialized contents are not yet proven.
+- Global bundle-key strings `0x135a0` and `0x135b8` correspond to the framework bean's property-key and property-value field names. Their values are PROVEN; only literal key-name text remains unknown.
+- The remaining Fragrance blocker is outside the now-closed project-config transport path and is more likely another capability/runtime state input consumed by HVAC/framework/UI.
 
 ## DISPROVEN
 
@@ -61,16 +65,18 @@ Do not reopen without new contradictory evidence:
 - `SVVDSCarStateService.apk` implements VehicleDevice.
 - Event `918905` exists only in Java/framework space.
 - The 918905 path should contain a direct `bl VehicleBusStub::publish@plt`; it publishes through vtable slot `+0x38` mapped by relocation `0x11088`.
+- `0x7c24` is a second independent publication implementation; mini-debug proves it is only a non-virtual thunk to `0x7b28`.
 - The traced VehicleDevice callback/publication bridge visibly applies a country/project/market/telematics filter before publishing the project config pair.
+- Failure of project-config/event-918905 transport is the working explanation for hidden Fragrance despite current evidence showing config50=1 at HVAC startup.
 
 ## OPEN
 
 - Which actual RU02 condition prevents Fragrance from becoming available despite config50=1?
-- What are the literal initialized contents/names of bundle-key global `std::string` objects at `0x135a0` and `0x135b8`?
-- Can `.gnu_debugdata` recover precise local function/vtable names for the callback and thunk?
-- What capability/availability input outside this now-closed project-config transport path controls Fragrance visibility/activation?
+- What Fragrance-specific runtime/capability input beyond config50 is consumed by HVAC or its backend?
+- Do `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, fragrance type/level/state IDs, or another event participate in visibility/activation rather than simple control state?
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
+- Literal initialized names of bundle-key globals `0x135a0` / `0x135b8` remain unresolved, but this is documentation-only unless contradictory evidence appears.
 
 ## Constraints
 
