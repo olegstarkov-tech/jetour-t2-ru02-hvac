@@ -35,6 +35,13 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - `VDServiceDef` separately identifies `com.desaysv.ivi.vds.vehicle.service.VehicleService` under package `android.hardware.automotive.vehicle@2.0-service` as the vehicle HAL service.
 - `VDEventVehicleDevice` defines `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE = 918905` and `PROJECT_RESERVE_CONFIGS = 917510`.
 - The RU02 framework-level config update chain is therefore PROVEN as: `VehicleDevice` event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC Fragrance predicate.
+- Exact candidate APK extraction succeeded for two likely containers:
+  - `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk`, 4393739 bytes, SHA-256 `2a172f9aa1a447df8ad32a733680843bfb5f131ca5c7db8dcbc507db49dd7282`, package `com.desaysv.ivi.vds.projection`.
+  - `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk`, 1877064 bytes, SHA-256 `52b3d5f63922031be273746cc3ac553c19a2d49a9508028aa81305c9988c0e1d`, package `com.desaysv.ivi.vds.carstate`.
+- `DesaySVProjectService.apk` manifest declares only its projection-side services (`ProjectionService` and `DesaySVProjectManagerService`); `VehicleDevice` is not declared there.
+- `SVVDSCarStateService.apk` manifest declares `CarStateService`; `VehicleDevice` is not declared there.
+- Both APKs contain raw DEX strings naming `com.desaysv.ivi.vds.vdev` and `com.desaysv.ivi.vds.vdev.service.VehicleDevice`, but raw string presence is reference evidence only and does not prove class ownership.
+- `DesaySVProjectService.apk` contains VDBus symbol strings including `VDEventVehicleDevice`, `VDVDeviceConfigStore` and `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`; `SVVDSCarStateService.apk` contains `VehicleDeviceManager`, consistent with a client role.
 
 ## DISPROVEN
 
@@ -49,6 +56,7 @@ Do not reopen without new contradictory evidence:
 - `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
 - RU06 -> RU02 HVAC DEX/manifest/resource deltas contain the missing-Fragrance gate.
 - `CarConfigUtil.getConfig(50)` applies another hidden Fragrance-specific gate after `EolConfig`; current RU02 code delegates directly.
+- A raw DEX hit for the `VehicleDevice` class name is enough to identify the implementation APK. Exact class definition must be verified in the decompiled source/class table.
 
 ## OPEN
 
@@ -56,6 +64,7 @@ Do not reopen without new contradictory evidence:
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 - Does RU02 runtime resolve VDBus/carconfig classes from system framework/shared libraries rather than bundled copies in old RU05 HVAC?
+- Which RU02 APK actually defines `com.desaysv.ivi.vds.vdev.service.VehicleDevice`?
 - How does `VehicleDevice` obtain/publish `vehicle.persist.project.ext.configs` through event 918905, and are there project/market/telematics/capability gates there?
 - Does `VehicleService` or another upstream component transform/filter the relevant capability before `VehicleDevice` publishes it?
 
