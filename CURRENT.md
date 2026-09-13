@@ -59,27 +59,24 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
   - `vdbus_extra.jar` — 111020 bytes; SHA-256 `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`;
   - `chery-platform-internal.jar` — 41604 bytes;
   - related candidates: `car-frameworks-service.jar`, `desaysv-car-frameworks-service-extension.jar`.
-- Both VDBus JARs decompile cleanly with JADX.
-- `vdbus_extra.jar` contains `CarConfigUtil`, `EolConfig`, config constants and Fragrance HVAC IDs. `vdbus.jar` contains the VDBus client/binder layer, `VDServiceDef`, `VDEventVehicleDevice` and `VDVDeviceConfigStore`.
-- `CarConfigUtil.init()` initializes VDBus and, when `ServiceType.VEHICLE_DEVICE` connects, subscribes to event `918905` (`PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`), registers its notify listener, commits the subscription, then calls `EolConfig.loadConfig()`.
-- On event `918905`, `CarConfigUtil` decodes the payload with `VDVDeviceConfigStore.getValue(vDEvent)`, obtains a key/value pair, and for `vehicle.persist.project.ext.configs` calls `EolConfig.updateConfig(Utils.stringToByte(value), null, null, null, null)`.
-- `CarConfigUtil.getConfig(int)` directly returns `EolConfig.getJetourEolConfig(int)`; there is no additional Fragrance-specific gate in `CarConfigUtil` itself.
-- `VDServiceDef` identifies the event source as system service package `com.desaysv.ivi.vds.vdev`, class `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
-- `VDServiceDef` separately identifies the vehicle HAL-facing service as `com.desaysv.ivi.vds.vehicle.service.VehicleService` under package `android.hardware.automotive.vehicle@2.0-service`.
-- `VDEventVehicleDevice` defines `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE = 918905` and `PROJECT_RESERVE_CONFIGS = 917510`.
-- Therefore the RU02 persistent-config update path is mapped at framework level as: VehicleDevice event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC predicate.
+- `vdbus_extra.jar` contains `CarConfigUtil`, `EolConfig`, config constants and Fragrance HVAC IDs. `vdbus.jar` contains VDBus client/binder layer, `VDServiceDef`, `VDEventVehicleDevice` and `VDVDeviceConfigStore`.
+- `CarConfigUtil.init()` subscribes to event `918905` (`PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`) from `ServiceType.VEHICLE_DEVICE`, registers its notify listener, commits, and calls `EolConfig.loadConfig()`.
+- On event `918905`, `CarConfigUtil` decodes `VDVDeviceConfigStore`, reads key/value, and for `vehicle.persist.project.ext.configs` calls `EolConfig.updateConfig(Utils.stringToByte(value), null, null, null, null)`.
+- `CarConfigUtil.getConfig(int)` directly delegates to `EolConfig.getJetourEolConfig(int)`; there is no extra Fragrance-specific gate there.
+- `VDServiceDef` names the event source as system service package `com.desaysv.ivi.vds.vdev`, class `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
+- `VehicleService` is separately identified as HAL-facing `com.desaysv.ivi.vds.vehicle.service.VehicleService` under package `android.hardware.automotive.vehicle@2.0-service`.
+- The framework-level config update chain is PROVEN as: VehicleDevice event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC predicate.
 
-### VehicleDevice package localization
+### VehicleDevice ownership search
 
-- Two strongest APK candidates were extracted read-only by exact path:
-  - `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk` — 4393739 bytes, SHA-256 `2a172f9aa1a447df8ad32a733680843bfb5f131ca5c7db8dcbc507db49dd7282`, package `com.desaysv.ivi.vds.projection`, versionCode 30, versionName `11`.
-  - `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk` — 1877064 bytes, SHA-256 `52b3d5f63922031be273746cc3ac553c19a2d49a9508028aa81305c9988c0e1d`, package `com.desaysv.ivi.vds.carstate`, versionCode 1, versionName `carstate_20230416.1650`.
-- Their manifests do not declare `com.desaysv.ivi.vds.vdev.service.VehicleDevice`.
-- Both DEXes contain raw strings naming `com.desaysv.ivi.vds.vdev` / `VehicleDevice`, but raw string presence proves only references.
-- Decompiled source-tree verification is now complete for both candidates:
-  - `DesaySVProjectService.apk` contains no `sources/com/desaysv/ivi/vds/vdev/...` files and no `class VehicleDevice` definition.
-  - `SVVDSCarStateService.apk` contains no `sources/com/desaysv/ivi/vds/vdev/...` files and no `class VehicleDevice` definition; its only relevant implementation-side class is client-side `com.desaysv.ivi.vds.carstate.vehicledevice.VehicleDeviceManager`.
-- Therefore both manually selected candidates are CLOSED as owners of the actual `VehicleDevice` implementation.
+- Two strongest APK candidates were extracted and decompiled:
+  - `/system/priv-app/DesaySVProjectService/DesaySVProjectService.apk` — SHA-256 `2a172f9aa1a447df8ad32a733680843bfb5f131ca5c7db8dcbc507db49dd7282`, package `com.desaysv.ivi.vds.projection`.
+  - `/product/app/SVVDSCarStateService/SVVDSCarStateService.apk` — SHA-256 `52b3d5f63922031be273746cc3ac553c19a2d49a9508028aa81305c9988c0e1d`, package `com.desaysv.ivi.vds.carstate`.
+- Neither APK defines `com.desaysv.ivi.vds.vdev.service.VehicleDevice`; `SVVDSCarStateService` contains only client-side `VehicleDeviceManager`.
+- An exact DEX `class_def` scan was then run across all APKs under RU02 `system/app`, `system/priv-app`, `product/app`, and `product/priv-app`.
+- 88 APKs were checked.
+- Result: zero APKs define descriptor `Lcom/desaysv/ivi/vds/vdev/service/VehicleDevice;`.
+- Therefore VehicleDevice is not implemented in any of those 88 APKs; earlier raw string hits were references/shared service tables only.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -91,18 +88,18 @@ Determine why OEM Fragrance / Aromatization does not appear/work even when vehic
 - `a2(fragranceBtn,z)` controls visibility.
 - RU06 -> RU02 HVAC DEX/manifest/resource differences contain the missing-Fragrance gate.
 - `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
-- `CarConfigUtil` contains a separate Fragrance-specific suppression after `getConfig(50)`; current RU02 code shows `getConfig()` delegates directly to `EolConfig`.
-- DEX string presence of `com.desaysv.ivi.vds.vdev.service.VehicleDevice` is sufficient to identify the APK that implements VehicleDevice.
-- `DesaySVProjectService.apk` implements `VehicleDevice`.
-- `SVVDSCarStateService.apk` implements `VehicleDevice`.
+- `CarConfigUtil` contains a separate Fragrance-specific suppression after `getConfig(50)`.
+- Raw DEX string presence identifies the VehicleDevice implementation APK.
+- `DesaySVProjectService.apk` or `SVVDSCarStateService.apk` implements VehicleDevice.
+- Any APK under the scanned RU02 `system/app`, `system/priv-app`, `product/app`, or `product/priv-app` defines VehicleDevice; exact class-table scan found none across 88 APKs.
 
 ## Current open question
 
-Which RU02 package/JAR actually defines `com.desaysv.ivi.vds.vdev.service.VehicleDevice`, and what backend condition inside or upstream of that service suppresses or fails to publish the Fragrance capability/event path despite persistent config50 being readable as 1?
+Where is the actual RU02 implementation of `com.desaysv.ivi.vds.vdev.service.VehicleDevice`, and which backend condition inside/upstream of it suppresses or fails to publish the Fragrance capability/event path despite persistent config50 being readable as 1?
 
 ## Next step
 
-Stop manually guessing package names. Perform an automated exact class-definition search across RU02 Android artifacts, starting with all APKs in `system`, `product`, and then `system_ext` plus relevant framework JARs if needed. Search for the actual class definition/source path `com/desaysv/ivi/vds/vdev/service/VehicleDevice`, not raw string references. Once ownership is found, extract/decompile only that artifact and trace event `918905` production and config-store filtering.
+Expand exact class-definition localization to RU02 `system_ext` plus framework archives (`system/framework`, `product/framework`, and `system_ext/framework`). Do not return to manual APK-name guessing. If the exact owner is found, decompile only that owner and trace event `918905` production and the origin/filtering of `vehicle.persist.project.ext.configs`.
 
 When the vehicle becomes available again, pull/hash live CarInfo/HVAC APKs and reconcile local artifact labels.
 
