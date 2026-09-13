@@ -56,42 +56,31 @@ Exact signed RU05 HVAC: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca854
 - Fragrance predicate is reevaluated when the bottom binding's own dirty flags are set, including `invalidateAll()` and `setHvacContentView(...)`.
 - Therefore a late RU05 config load/update does **not automatically** recompute existing Fragrance visibility.
 
-### RU05 same-process UI reconstruction path — NEW PROVEN
+### RU05 same-process UI reconstruction path
 
-Static lifecycle trace proves a concrete stock reinflate primitive inside singleton `com.desaysv.svhvac.view.b`:
+- `view/b.t1()` removes the old main HVAC child from `HvacContentViewBinding.rootLayout`, clears old listeners, inflates a **new** `HvacMainViewBinding`, assigns its new `bottomLayout`, and adds the new root back.
+- `view/b.I0(context)` calls `L0()`; `L0()` calls `t1()`.
+- Therefore `I0()` creates a fresh BottomLayout DataBinding tree without process death, so the RU05 Fragrance predicate is reevaluated from current static config state.
 
-- `view/b.t1()` removes the old main HVAC child view from `HvacContentViewBinding.rootLayout`;
-- it clears the old main-binding touch listener;
-- it obtains a `LayoutInflater` from the existing process context;
-- it inflates a **new** `HvacMainViewBinding` and assigns it to field `k`;
-- from that new main binding it assigns the new `bottomLayout` binding to field `m`;
-- it adds the new main binding root back into the existing root layout.
+### RU05 configuration-change destroy/rebuild path — NEW PROVEN
 
-Thus `t1()` rebuilds the main/bottom DataBinding tree without process death. A newly created `BottomLayoutBindingImpl` will rerun its initial dirty-state logic, including the RU05 Fragrance existence predicate.
+Exact `HvacApplication` and handler trace closes the stock same-process refresh mechanism:
 
-- Exact call-site scan in the generated report shows `view/b.I0(context)` calls `L0()` during initialization, and `L0()` calls `t1()`.
-- No evidence in the current report shows `OPEN_PANEL`, `CLOSE_PANEL`, `SSS`, or `HHH` directly calling `t1()`; those service commands operate on the already-existing singleton view state.
+- `onConfigurationChanged(Configuration)` reacts when either `Locale.getDefault().getLanguage()` changes or `(uiMode & 0x30)` changes.
+- It calls `view/c/a.g().j()` and then private `HvacApplication.b()`.
+- `b()` snapshots `HvacService.c()` (whether HVAC is currently shown), maps that state to handler message `2` (shown) or `1` (not shown), and checks `view/b.R0()`.
+- If `R0()==true`, `b()` calls `view/b.d1(false)` and `HvacService.d(false)` before posting the selected message with zero delay.
+- `R0()` is exactly field `K`.
+- `d1(false)` is the stock `destroyHvac` path. With `false` it keeps the outer `HvacContentViewBinding`/WindowManager root, removes the old `HvacMainViewBinding` root from `rootLayout`, tears down listeners/helpers, and finally sets `K=false`.
+- Handler message `1` or `2` checks `R0()`; when false it calls `view/b.I0(applicationContext)`.
+- `I0()` -> `L0()` -> `t1()` inflates a new main/bottom binding in the same process.
+- Message `2` then follows the shown-state path (`C1(false)`, `HvacService.d(true)`); message `1` follows the hidden-state path (`x0(false)`, `HvacService.d(false)`).
 
-### RU05 exported service control surface — NEW PROVEN
+Therefore RU05 has a fully proven OEM same-process `configuration change -> destroy old main binding -> I0/L0/t1 -> fresh BottomLayout` mechanism. Process-static `EolConfig.mCarConfig1` can survive across this rebuild.
 
-`HvacService` is exported and `onStartCommand()` reads string extra `type`. Static dispatch contains stock commands including:
+### RU05 exported service control surface
 
-- `com.desaysv.svhvac.vr.OPEN_FRAGMENT`
-- `com.desaysv.svhvac.vr.CLOSE_FRAGMENT`
-- `com.desaysv.svhvac.OPEN_PANEL`
-- `com.desaysv.svhvac.CLOSE_PANEL`
-- `com.desaysv.svhvac.CONTROL_PANEL`
-- `com.desaysv.svhvac.SSS`
-- `com.desaysv.svhvac.HHH`
-
-These are useful runtime control points, but current evidence does not prove that any one of them recreates BottomLayout. Do not treat them as the reinflate trigger yet.
-
-### RU05 configuration-change rebuild candidate — NEW OBSERVATION
-
-- `HvacApplication` contains a private method `b()` whose log string is exactly `onConfigurationChanged destoryAndReshow isHvacShow=`.
-- The configuration-change handling path later calls `view/c/a.g().j()` and then this private `HvacApplication.b()` before updating cached application state.
-- This strongly suggests a stock same-process destroy/re-show path intended for configuration changes.
-- However the lifecycle report only captured the beginning of private `b()` and the later call-site; the middle of `b()` was omitted by grep context. Therefore the exact destroy/reinflate calls inside `b()` are **not yet PROVEN**.
+`HvacService` is exported and `onStartCommand()` reads string extra `type`. Static dispatch contains stock commands including `OPEN_PANEL`, `CLOSE_PANEL`, `CONTROL_PANEL`, `SSS`, `HHH`, and VR open/close-fragment commands. Current evidence still does not prove those commands themselves perform the full reinflate; the configuration-change path is the proven refresh primitive.
 
 ## LIKELY
 
@@ -108,9 +97,7 @@ A startup-order/stale-binding failure is technically well supported:
 3. later `onVDConnected()`/event 918905 could populate config50 correctly;
 4. that config update would not automatically refresh existing bottom-binding visibility.
 
-The existence of stock `t1()` same-process reinflation means this stale-binding state is in principle recoverable without replacing or patching the APK.
-
-A particularly strong candidate workaround is: keep the signed RU05 process alive until config50 has loaded, trigger the app's own configuration-change destroy/re-show path, and let the newly inflated BottomLayout reevaluate `getConfig(50)`. This remains HYPOTHESIS until exact `HvacApplication.b()` is extracted and a safe reversible configuration-change trigger is identified.
+The newly proven configuration-change destroy/rebuild path provides a concrete no-patch way to test this hypothesis while preserving the RU05 process and static config state.
 
 ## DISPROVEN / closed without new evidence
 
@@ -128,19 +115,21 @@ A particularly strong candidate workaround is: keep the signed RU05 process aliv
 - RU05 adds a second T1H/PHEV/market/telematics/project gate after config50.
 - A late RU05 `EolConfig.updateConfig()` automatically refreshes existing BottomLayout binding through observable DataBinding registration.
 - `OPEN_PANEL` by itself is already proven to recreate BottomLayout; current trace does not support that claim.
+- RU05 configuration-change handling is only a hide/show path; exact code proves full same-process main/bottom binding reconstruction.
 
 ## Current open question
 
-What exactly does RU05 `HvacApplication.b()` do during configuration change, and does it invoke the stock destroy/reinitialize path that reaches `view/b.I0 -> L0 -> t1()` while keeping the process and already-loaded static `mCarConfig1` alive?
+Live question only: after signed RU05 has loaded config50=1 on the RU02 system base, will a reversible `uiMode` configuration change trigger the proven OEM rebuild and make the Fragrance entry visible?
 
 ## Next step
 
-Extract only three exact RU05 smali bodies from the existing decoded APK:
+When the canonical vehicle is available:
 
-1. full `HvacApplication.b()V`;
-2. full configuration-change callback containing the call to `b()`;
-3. `HvacApplication$a` Handler body if `b()` posts work through it.
+1. install/start exact signed RU05 HVAC and keep the process alive;
+2. verify/wait until RU05 config50 is loaded as `1` from runtime evidence;
+3. read and save current Android night/uiMode state;
+4. trigger one reversible night-mode change through ADB to force `onConfigurationChanged()`;
+5. verify logs for `destoryAndReshow`, `destroyHvac`, `init`, and the Fragrance existence predicate; visually check the button;
+6. restore the original night-mode state immediately.
 
-Then choose one reversible ADB configuration-change trigger only if the exact stock path proves it will rebuild the binding without killing the process.
-
-Do not install additional RU05 components yet, do not patch Desay APKs, and do not blind-write VDBus/properties.
+Before the changing command, first perform only the read-only state capture. Do not install additional RU05 components, patch Desay APKs, or blind-write VDBus/properties.
