@@ -45,13 +45,17 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - In the generated runtime-input audit, no semantic `FragranceDisplay` / `FragranceWarning` reference was found and the explicit numeric candidate scan for IDs 58/59/60/61/62/64/66/71/76/88 returned no direct cases. This is a result of the audit, not proof that the backend states are unused.
 - `HvacContentView` Fragrance power callback changes `fragranceBtn` selected state via `setSelected(z)`; it does not make the button visible.
 - `FragranceDialog` callbacks visible in the audit handle Fragrance power, level, type, remaining amount and position/installed-state behavior; no direct main-button visibility change was identified there.
-- The Fragrance dialog and HVAC activity/view use obfuscated presenter type `b.a.d.a.b.x0`, explicitly labeled `mFragrancePresenter` by Kotlin/JADX metadata/usages. That presenter is the next concrete static target.
+- `b.a.d.a.b.x0` is exactly `FragrancePresenter`. It extends the generic presenter with model type `b.a.b.a.b.b` (`IFragranceModel`).
+- `x0` contains no CarInfo/VDBus property IDs and no visibility/capability branch. It is a thin presenter over the model: `b()` returns `b.a.b.a.c.e.b()`, registration uses `d().x0(listener); d().a()`, cleanup uses `d().b(); d().o(listener)`, and all nine model callbacks are forwarded to registered listeners/view without filtering.
+- `x0` getter mapping is direct: `k()->model.r()`, `l()->m0()`, `m()->F0()`, `n()->E()`, `o()->H()`, `p()->f0()`, `q()->h()`, `r()->z()`, `s()->P()`. Setters/actions are `t(i)->B0(i)`, `u(i)->l(i)`, `v(z)->B(z)`, `w()->c()`.
+- UI usage identifies the operational semantics strongly enough for the current trace: `k()` = fragrance level, `l()` = current fragrance position, `m()` = power/on-off state, `n/o/p()` = cartridge remain 1/2/3, and `q/r/s()` = cartridge/type status 1/2/3. The callbacks mirror these ordinary operational states.
+- Therefore `x0` itself is not the missing Fragrance visibility gate; the next concrete layer is the `IFragranceModel` implementation returned by factory `b.a.b.a.c.e.b()`.
 
 ## LIKELY
 
 - Global bundle-key strings `0x135a0` and `0x135b8` correspond to the framework bean's property-key and property-value field names. Their values are PROVEN; only literal key-name text remains unknown.
 - The remaining Fragrance blocker is outside the now-closed project-config transport path and is more likely another capability/runtime state input consumed by HVAC/framework/UI.
-- Any separate display/availability predicate, if it exists, is more likely to be discoverable in `b.a.d.a.b.x0` FragrancePresenter or its proxy/callback registrations than in the already inspected view/binding code.
+- If a separate display/availability predicate exists in the HVAC application path, it is now more likely to reside in the concrete `IFragranceModel` implementation or below it than in `FragrancePresenter`/view code.
 
 ## DISPROVEN
 
@@ -75,13 +79,15 @@ Do not reopen without new contradictory evidence:
 - The traced VehicleDevice callback/publication bridge visibly applies a country/project/market/telematics filter before publishing the project config pair.
 - Failure of project-config/event-918905 transport is the working explanation for hidden Fragrance despite current evidence showing config50=1 at HVAC startup.
 - `AC_FRAGRANCE_DISPLAY` is already proven to be the missing visibility gate. The current audit found no concrete consumer path for that conclusion.
+- `b.a.d.a.b.x0` / `FragrancePresenter` contains the hidden visibility/capability gate. Its code is direct model delegation and callback fan-out with no such condition.
 
 ## OPEN
 
 - Which actual RU02 condition prevents Fragrance from becoming available despite config50=1?
-- What does `b.a.d.a.b.x0` FragrancePresenter subscribe to/read/write?
-- Does x0 expose an additional availability/display state separate from power/type/level/remain/position state?
-- Do `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, fragrance type/level/state IDs, or another event participate in visibility/activation once x0 is decoded?
+- Which concrete class is returned by `b.a.b.a.c.e.b()` as the `IFragranceModel` implementation?
+- Which CarInfo/HVAC/VDBus properties/events does that model subscribe to and expose through `r/m0/F0/E/H/f0/h/z/P`?
+- Does the concrete model or its lower proxy contain an additional availability/display state separate from power/type/level/remain/position state?
+- Do `AC_FRAGRANCE_DISPLAY`, `AC_FRAGRANCE_WARNING`, or another backend state enter the path at the model layer?
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 - Literal initialized names of bundle-key globals `0x135a0` / `0x135b8` remain unresolved, but this is documentation-only unless contradictory evidence appears.
