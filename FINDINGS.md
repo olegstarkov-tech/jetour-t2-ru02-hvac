@@ -29,14 +29,20 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - RU06 and RU02-labeled HVAC are extremely close at ZIP-entry level: 2948 identical entries, only 6 changed, no added/removed; Fragrance XML layouts are byte-identical. Changed entries are DEX, manifest, resources table and signature metadata.
 - HVAC RU06 `classes.dex` is `6031076` bytes; RU02-labeled is `6031108` bytes.
 - Focused JADX source-tree diff of RU06 vs RU02-labeled HVAC finds exactly one differing generated Java file: `com/desaysv/svhvac/view/b.java`.
-- The only generated-Java delta is `K1(boolean)`: RU02-labeled HVAC adds guard `com.desaysv.svhvac.h.a.a().h()` around the existing `ionAnimation` update block. The underlying operations remain `setVisibilityAndRunOn(...)` and `setDrawables(R.array.blow_mode_ion_array)`.
+- The only generated-Java delta is `K1(boolean)`: RU02-labeled HVAC adds guard `com.desaysv.svhvac.h.a.a().h()` around the existing `ionAnimation` update block.
 - `com.desaysv.svhvac.h.a` is `OfflineConfigManager`.
 - RU06 and RU02-labeled decompiled `OfflineConfigManager.java` are byte-identical, SHA-256 `d4419f35e81def8fcd7739f927e46a115e366b32d0b54d1b3b0b42365fa047c1`.
 - `OfflineConfigManager.h()` means `isIonExist`: it returns `CarConfigUtil.getDefault().getConfig(91)==1` and logs `isIonExist`.
 - `OfflineConfigManager.f()` is separately `isFragranceExist`: it returns `getConfig(50)==1 && !isT1H_PHEV()`.
-- `h()` call sites are explicitly ionizer-specific: `onIonClick` rejects with `ion is no exist`, and `u1()` logs/uses `isIonExist` together with PM2.5 support to select ion/PM2.5 UI.
-- Direct apktool/smali comparison independently confirms the same `K1(boolean)` change: RU02 inserts only `OfflineConfigManager.a().h()` and returns immediately when that value is false, before the existing ion-animation code. The extracted `h()Z` method itself has no RU06/RU02 smali diff.
+- `h()` call sites are explicitly ionizer-specific: `onIonClick` rejects with `ion is no exist`, and `u1()` logs/uses `isIonExist` together with PM2.5 support.
+- Direct apktool/smali comparison confirms RU02 inserts only `OfflineConfigManager.a().h()` plus early `return-void` before the existing ion-animation code; the extracted `h()Z` method itself has no RU06/RU02 smali diff.
 - Therefore the only confirmed RU06 -> RU02 HVAC DEX behavior change is an ionizer/config91 animation guard, not a change to the Fragrance/config50 predicate.
+- Decoded RU06 vs RU02-labeled HVAC `AndroidManifest.xml` is semantically identical; normalized manifest diff is empty.
+- Decoded resource comparison finds 13 differing common `strings.xml` files plus one RU02-only `values-ms-rMY/strings.xml` and no other changed decoded resource types.
+- No decoded layout, bool, integer, style, id, array, drawable, alias or visibility resource differs between RU06 and RU02-labeled HVAC.
+- Resource differences are localization-only: French/Kazakh/Uzbek additions, Thai translation replacement, Malay locale relocation/retargeting, and minor wording fixes in several locales.
+- Fragrance-related resource changes are text-only. Default English fixes `fragnance` -> `fragrance`; Russian Fragrance strings are unchanged.
+- Therefore the observed RU06 -> RU02 HVAC APK delta (DEX + manifest + decoded resources) does not provide a mechanism that can explain Fragrance being hidden.
 - Both HVAC JADX runs report 22 errors while processing the same 1449-class workload; the captured console logs do not identify each error, so equality of the error sets is not yet proven.
 - RU05 `SVVDSCarInfo` is a distinct generation: APK `3019216`, DEX `4926660`.
 - RU06 and RU02-labeled `SVVDSCarInfo` are extremely close at ZIP-entry level: 593 identical entries, only 5 changed, no added/removed; `resources.arsc` is byte-identical; changes are DEX, manifest and signature metadata.
@@ -62,15 +68,15 @@ Do not reopen without new contradictory evidence:
 - RU06 and RU02-labeled HVAC contain a broad Java-code rewrite; current generated-source diff shows one method delta in one class.
 - `com.desaysv.svhvac.h.a.a().h()` is a Fragrance predicate. It is `isIonExist` using config ID 91.
 - The confirmed RU06 -> RU02 HVAC `K1(boolean)` DEX delta is the missing-Fragrance gate. Smali shows it only gates `ionAnimation` through `isIonExist/config91`.
+- RU06 -> RU02 decoded HVAC manifest/resource changes contain a Fragrance visibility/capability gate. The decoded manifest is identical and resource changes are localization-only.
 
 ## OPEN
 
 - Which RU02 system/backend condition prevents Fragrance from becoming available despite config50=1?
 - Why does the old RU05 HVAC APK also fail on the current RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the current live canonical vehicle?
-- Is the `fragrance_btn GONE` layout state a symptom of a firmware/resource packaging decision, or one part of a wider system-level gating mechanism?
-- What are the decoded manifest/resources-table differences between RU06 and RU02-labeled HVAC?
 - Does runtime class loading on RU02 resolve VDBus/carconfig classes from the system framework/shared library instead of any copies bundled in the old RU05 APK?
+- Which system/framework/service component suppresses or fails to publish the Fragrance capability/event path on RU02 despite persistent config50 being readable as 1?
 
 ## Constraints
 
