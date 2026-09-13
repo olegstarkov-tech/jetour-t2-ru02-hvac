@@ -26,7 +26,15 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - RU02 OTA payload contains 25 partitions including Android `system` (923.1 MB), `system_ext` (80.8 MB), `product` (5.6 GB), `vendor` (348.9 MB) and separate `system_qnx` (3.0 GB).
 - RU02 Android `system.img` has been extracted read-only: 967962624 bytes, SHA-256 `19ac46038cd8662891a8da6319844b31b0cadaf5e82e156108a91b474771265d`, ext2 filesystem.
 - The correct framework directory inside this image is `/system/framework`.
-- `/system/framework` contains `vdbus.jar` (1395532 bytes), `vdbus_extra.jar` (111020 bytes), and `chery-platform-internal.jar` (41604 bytes), all present in the 2026-04-10 RU02 image; related candidates include `car-frameworks-service.jar` and `desaysv-car-frameworks-service-extension.jar`.
+- `/system/framework` contains `vdbus.jar` (1395532 bytes; SHA-256 `bdf017b219e4d940c17ea5d142bad7752bdf006bc28a82759259df2545c76de3`) and `vdbus_extra.jar` (111020 bytes; SHA-256 `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`), plus `chery-platform-internal.jar` and related framework candidates.
+- `vdbus_extra.jar` contains `CarConfigUtil`, `EolConfig`, carconfig constants and HVAC Fragrance IDs; `vdbus.jar` contains VDBus client/binder classes, `VDServiceDef`, `VDEventVehicleDevice` and `VDVDeviceConfigStore`.
+- `CarConfigUtil.init()` subscribes to `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE` event `918905` when `ServiceType.VEHICLE_DEVICE` connects, registers its notify listener, commits subscription, and loads EOL config.
+- On event `918905`, `CarConfigUtil` decodes `VDVDeviceConfigStore`, reads key/value, and updates the corresponding EOL config array. For `vehicle.persist.project.ext.configs`, it calls `EolConfig.updateConfig(Utils.stringToByte(value), null, null, null, null)`.
+- `CarConfigUtil.getConfig(int)` directly returns `EolConfig.getJetourEolConfig(int)`, so there is no extra Fragrance-specific suppression layer inside `CarConfigUtil`.
+- `VDServiceDef` identifies the event producer/service as package `com.desaysv.ivi.vds.vdev`, class `com.desaysv.ivi.vds.vdev.service.VehicleDevice`; it is marked as a system service.
+- `VDServiceDef` separately identifies `com.desaysv.ivi.vds.vehicle.service.VehicleService` under package `android.hardware.automotive.vehicle@2.0-service` as the vehicle HAL service.
+- `VDEventVehicleDevice` defines `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE = 918905` and `PROJECT_RESERVE_CONFIGS = 917510`.
+- The RU02 framework-level config update chain is therefore PROVEN as: `VehicleDevice` event 918905 -> `VDVDeviceConfigStore` key/value -> `CarConfigUtil` -> `EolConfig.updateConfig()` -> `getConfig(50)` -> HVAC Fragrance predicate.
 
 ## DISPROVEN
 
@@ -40,6 +48,7 @@ Do not reopen without new contradictory evidence:
 - `a2(fragranceBtn,z)` is the visibility gate.
 - `OfflineConfigManager.h()` is a Fragrance predicate; it is ionizer/config91.
 - RU06 -> RU02 HVAC DEX/manifest/resource deltas contain the missing-Fragrance gate.
+- `CarConfigUtil.getConfig(50)` applies another hidden Fragrance-specific gate after `EolConfig`; current RU02 code delegates directly.
 
 ## OPEN
 
@@ -47,7 +56,8 @@ Do not reopen without new contradictory evidence:
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 - Does RU02 runtime resolve VDBus/carconfig classes from system framework/shared libraries rather than bundled copies in old RU05 HVAC?
-- Which system/framework/service component suppresses or fails to publish the Fragrance capability/event path despite persistent config50 being readable as 1?
+- How does `VehicleDevice` obtain/publish `vehicle.persist.project.ext.configs` through event 918905, and are there project/market/telematics/capability gates there?
+- Does `VehicleService` or another upstream component transform/filter the relevant capability before `VehicleDevice` publishes it?
 
 ## Constraints
 
