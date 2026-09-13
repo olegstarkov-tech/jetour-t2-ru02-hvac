@@ -35,8 +35,15 @@ Only durable findings belong here. Labels: PROVEN / DISPROVEN / OPEN.
 - `VehicleHal::setProjectExtConfigs(key,value)` compares against the old value, ignores empty/unchanged updates, writes changed values to `VehicleConfigStore`, updates EOL cache state for ext-config keys, then forwards the same key/value through the registered callback.
 - `VehicleHal::onVehiclePropertyConfigChange(key,value)` only logs and forwards the same key/value to the callback; no country/project/market/telematics gate is present in that forwarding function.
 - `libdesaysv_vehicledevice.so` contains the persistent project keys `vehicle.persist.project.ext.configs` through `ext.configs9`, project code/PN/phonelink keys, `countryCode`, and `ro.sys.ivi.eol.country.code`.
-- Targeted service disassembly proves native construction of event ID `918905` (`0x000E0579`): `0x7ba8 mov w8,#0x579` + `0x7bb0 movk w8,#0xe,lsl#16`, and again `0x7ca4 mov w8,#0x579` + `0x7cac movk w8,#0xe,lsl#16`.
-- Those two event-ID materialization sites are in the same local service region as xref candidates to the exact `VehicleDeviceVDS::onVehiclePropertyConfigChange` log string. Therefore event `918905` is constructed in the native VehicleDevice service glue, not only represented as a Java framework constant.
+- Targeted service disassembly proves native construction of event ID `918905` (`0x000E0579`) at two sites: `0x7ba8/0x7bb0` and `0x7ca4/0x7cac`.
+- In the first 918905 block, `VehicleBusBundle::putString(...)` is called at `0x7bc4` and `0x7bd8`; in the second it is called at `0x7cc0` and `0x7cd4`. Therefore the service-side 918905 path constructs a two-string bundle.
+- The two 918905 sites are in the same local service region as xrefs to the exact `VehicleDeviceVDS::onVehiclePropertyConfigChange` log string. Therefore event `918905` is constructed in native VehicleDevice service glue, not only represented as a Java framework constant.
+- `readelf -rW` shows `VehicleBusStub::publish(VehicleBusEvent const&)` through an `R_AARCH64_ABS64` relocation at `0x11088`, while `VehicleBusStub::set(...)` has an ordinary `R_AARCH64_JUMP_SLOT` relocation. This explains why no direct `publish@plt` call appears in the narrow disassembly and strongly indicates an indirect function-pointer/table call path.
+
+## LIKELY
+
+- The two strings inserted into the 918905 bundle are the upstream property key and property value, matching the `ISVPVehiclePropertyConfigCallback(key,value)` input and the framework-side `VDVDeviceConfigStore` consumer. Exact argument/string-key decoding is still required before upgrading this to PROVEN.
+- The final `VehicleBusStub::publish()` call is indirect through a data/function-pointer slot associated with relocation address `0x11088`; exact code xref is not yet proven.
 
 ## DISPROVEN
 
@@ -58,13 +65,15 @@ Do not reopen without new contradictory evidence:
 - `/vehicle` contains the Java VehicleDevice implementation.
 - Vendor needs another broad APK/JAR search; recursive inventory shows the backend is native.
 - Event `918905` exists only in Java/framework space; native service code explicitly materializes the same numeric ID.
+- The 918905 path should contain a direct `bl VehicleBusStub::publish@plt`; relocation evidence instead points to an indirect reference.
 
 ## OPEN
 
 - Which RU02 native condition prevents Fragrance from becoming available despite config50=1?
-- Which exact service function/basic block owns the `0x7ba8` / `0x7ca4` event-918905 sites?
-- How are `VehicleBusEvent` and bundle fields built there, and where is the final `VehicleBusStub::publish()` call edge?
-- Are `countryCode`, project/product IDs, telematics, capability, or another condition used later in this exact service-side publication path?
+- What exact service function/basic block owns the 918905/two-`putString` path?
+- What are the two bundle field names and which arguments are the property key/value?
+- Which code xref uses the `VehicleBusStub::publish` ABS64 relocation at `0x11088`, and does the 918905 callback reach it directly or through a wrapper/table?
+- Are country/project/product IDs, telematics, capability, or another condition used later in this exact service-side publication path?
 - Why does old RU05 HVAC also fail on the RU02 system base?
 - Which local CarInfo/HVAC artifacts are byte-exact with the live canonical vehicle?
 
