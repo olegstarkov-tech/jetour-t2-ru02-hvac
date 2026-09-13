@@ -31,12 +31,14 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - Therefore RU05 has a fully proven OEM same-process chain: `configuration change -> d1(false) -> handler -> I0 -> L0 -> t1 -> fresh BottomLayoutBinding`.
 - This rebuild does not kill the process, so process-static config state such as `EolConfig.mCarConfig1` can survive and be reevaluated by the new RU05 binding.
 - Exported `HvacService.onStartCommand()` accepts string extra `type` and exposes stock commands including `OPEN_PANEL`, `CLOSE_PANEL`, `CONTROL_PANEL`, `SSS`, `HHH`, and VR open/close-fragment commands; these are not currently proven to be the full reinflate trigger themselves.
+- During an earlier live run with signed RU05 HVAC installed on the running canonical vehicle, the user manually switched HU quick-shade day/night/auto modes and Fragrance still did not appear.
+- That historical live test did not capture whether the shade control changed Android `uiMode & 0x30`, triggered the exact `onConfigurationChanged -> destroy/rebuild` path, preserved the same process, or happened after RU05 config50 had become `1`.
 
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
-- Failed signed RU05-on-RU02 A/B test is plausibly explained by stale initial binding: first evaluation before async config load gives false/INVISIBLE; correct config arrives later; existing binding is not automatically reevaluated.
-- The proven configuration-change rebuild provides a concrete no-patch test of that hypothesis while preserving the RU05 process and static config state.
+- Failed signed RU05-on-RU02 A/B test may still involve stale initial binding, but confidence is reduced by the historical quick-shade day/night/auto no-effect observation.
+- A controlled ADB/logcat test is required; simply repeating a user-visible day/night toggle without proving runtime preconditions is not sufficient.
 
 ## DISPROVEN
 
@@ -58,11 +60,13 @@ Do not reopen without new contradictory evidence:
 - A late RU05 config update automatically refreshes BottomLayout via observable DataBinding.
 - `OPEN_PANEL` is already proven to be the BottomLayout-reinflate trigger.
 - RU05 configuration-change handling is merely hide/show without binding reconstruction.
+- Any arbitrary quick-shade day/night/auto switch is already proven sufficient to expose Fragrance.
 
 ## OPEN
 
-- Live test: after signed RU05 has loaded config50=1, does a reversible `uiMode`/night-mode change trigger the proven rebuild and expose the Fragrance button?
-- Did runtime class loading use embedded RU05 config/VDBus classes or a same-named parent/shared implementation? Investigate only if the rebuild test fails despite runtime config50=1.
+- Did the prior quick-shade day/night/auto action actually alter Android `uiMode & 0x30` and execute the exact RU05 rebuild path?
+- Was RU05 config50 already `1` when that prior visual toggle occurred?
+- If a controlled rebuild is proven with same PID and `isFragranceExist=true` yet the button remains absent, investigate runtime class loading or another RU05 UI runtime effect.
 - Runtime dynamic overlay and exact live APK hash reconciliation remain pending vehicle return.
 
 ## Constraints
