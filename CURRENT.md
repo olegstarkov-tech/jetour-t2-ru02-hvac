@@ -62,9 +62,7 @@ Exact signed RU05 HVAC: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca854
 - `view/b.I0(context)` calls `L0()`; `L0()` calls `t1()`.
 - Therefore `I0()` creates a fresh BottomLayout DataBinding tree without process death, so the RU05 Fragrance predicate is reevaluated from current static config state.
 
-### RU05 configuration-change destroy/rebuild path — NEW PROVEN
-
-Exact `HvacApplication` and handler trace closes the stock same-process refresh mechanism:
+### RU05 configuration-change destroy/rebuild path
 
 - `onConfigurationChanged(Configuration)` reacts when either `Locale.getDefault().getLanguage()` changes or `(uiMode & 0x30)` changes.
 - It calls `view/c/a.g().j()` and then private `HvacApplication.b()`.
@@ -75,8 +73,15 @@ Exact `HvacApplication` and handler trace closes the stock same-process refresh 
 - Handler message `1` or `2` checks `R0()`; when false it calls `view/b.I0(applicationContext)`.
 - `I0()` -> `L0()` -> `t1()` inflates a new main/bottom binding in the same process.
 - Message `2` then follows the shown-state path (`C1(false)`, `HvacService.d(true)`); message `1` follows the hidden-state path (`x0(false)`, `HvacService.d(false)`).
+- Therefore RU05 has a fully proven OEM same-process `configuration change -> destroy old main binding -> I0/L0/t1 -> fresh BottomLayout` mechanism. Process-static `EolConfig.mCarConfig1` can survive across this rebuild.
 
-Therefore RU05 has a fully proven OEM same-process `configuration change -> destroy old main binding -> I0/L0/t1 -> fresh BottomLayout` mechanism. Process-static `EolConfig.mCarConfig1` can survive across this rebuild.
+### Prior live RU05 day/night toggle observation — NEW DIRECT EVIDENCE
+
+- During an earlier live test on the running canonical vehicle with signed RU05 HVAC installed, the user manually switched the HU quick-shade day/night/auto modes multiple times.
+- Fragrance did **not** appear after those user-visible day/night/auto switches.
+- This is direct negative live evidence against a simplistic claim that "any day/night toggle after RU05 startup is enough".
+- However that historical test did not capture ADB/logcat evidence proving that the shade control actually changed Android `Configuration.uiMode & 0x30`, triggered the exact RU05 `onConfigurationChanged -> b() -> d1(false) -> I0/t1` path, preserved the same process, or occurred after RU05 `getConfig(50)` had become `1`.
+- Therefore the specific stale-binding/reinflate hypothesis is **weakened but not yet disproven**.
 
 ### RU05 exported service control surface
 
@@ -90,14 +95,17 @@ Strongest static explanation remains a T1J UI implementation omission/regression
 
 ### RU05-on-RU02 failed A/B test
 
-A startup-order/stale-binding failure is technically well supported:
+Startup-order/stale-binding remains possible, but confidence is reduced by the historical live day/night/auto no-effect observation.
 
-1. if VehicleDevice was not yet connected when RU05 `CarConfigUtil.init()` ran, config load was deferred;
-2. if the first BottomLayout binding evaluated before `mCarConfig1` was populated, `getConfig(50)` returned false and Fragrance became `INVISIBLE`;
-3. later `onVDConnected()`/event 918905 could populate config50 correctly;
-4. that config update would not automatically refresh existing bottom-binding visibility.
+The decisive future test must not merely toggle a visible day/night control. It must simultaneously prove at runtime:
 
-The newly proven configuration-change destroy/rebuild path provides a concrete no-patch way to test this hypothesis while preserving the RU05 process and static config state.
+1. RU05 `isFragranceExist` / config50 is already `true` before rebuild;
+2. the toggle actually causes RU05 `onConfigurationChanged` and `destoryAndReshow`;
+3. PID/process remains alive;
+4. fresh BottomLayout is created;
+5. Fragrance visibility result after that exact fresh binding.
+
+If those conditions are all observed and the button still remains absent, the stale-binding workaround is disproven and RU05 runtime class/config resolution or another UI runtime effect must be investigated.
 
 ## DISPROVEN / closed without new evidence
 
@@ -116,20 +124,20 @@ The newly proven configuration-change destroy/rebuild path provides a concrete n
 - A late RU05 `EolConfig.updateConfig()` automatically refreshes existing BottomLayout binding through observable DataBinding registration.
 - `OPEN_PANEL` by itself is already proven to recreate BottomLayout; current trace does not support that claim.
 - RU05 configuration-change handling is only a hide/show path; exact code proves full same-process main/bottom binding reconstruction.
+- Any arbitrary quick-shade day/night/auto toggle is already proven sufficient to expose Fragrance; direct live observation shows no visible effect in the prior test.
 
 ## Current open question
 
-Live question only: after signed RU05 has loaded config50=1 on the RU02 system base, will a reversible `uiMode` configuration change trigger the proven OEM rebuild and make the Fragrance entry visible?
+Did the prior quick-shade day/night/auto switching actually execute the exact Android `uiMode` configuration-change rebuild **after RU05 config50 had become 1**? If yes, the stale-binding workaround is effectively disproven. If no, a controlled ADB/logcat test remains necessary.
 
 ## Next step
 
-When the canonical vehicle is available:
+When the canonical vehicle is available, do not start by blindly toggling night mode again. First establish the runtime preconditions read-only:
 
-1. install/start exact signed RU05 HVAC and keep the process alive;
-2. verify/wait until RU05 config50 is loaded as `1` from runtime evidence;
-3. read and save current Android night/uiMode state;
-4. trigger one reversible night-mode change through ADB to force `onConfigurationChanged()`;
-5. verify logs for `destoryAndReshow`, `destroyHvac`, `init`, and the Fragrance existence predicate; visually check the button;
-6. restore the original night-mode state immediately.
+1. run exact signed RU05 HVAC;
+2. capture PID;
+3. prove from logs/runtime that RU05 `isFragranceExist` / config50 is `1`;
+4. capture current Android `uiMode` and start focused logcat;
+5. only then trigger one reversible ADB `uiMode` change and verify whether the exact `onConfigurationChanged -> destoryAndReshow -> destroyHvac -> I0/t1` chain executes with the same PID.
 
-Before the changing command, first perform only the read-only state capture. Do not install additional RU05 components, patch Desay APKs, or blind-write VDBus/properties.
+Do not install additional RU05 components, patch Desay APKs, or blind-write VDBus/properties.
