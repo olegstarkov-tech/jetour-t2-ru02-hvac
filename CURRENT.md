@@ -70,18 +70,23 @@ Static inspection proves:
 - `VehicleHal::onVehiclePropertyConfigChange(key,value)` only logs and forwards the same key/value through the registered callback; no country/project/market/telematics condition was observed in that forwarding function;
 - `libdesaysv_vehicledevice.so` contains `vehicle.persist.project.ext.configs` through `ext.configs9`, project code/PN/phonelink keys, `countryCode`, and `ro.sys.ivi.eol.country.code`.
 
-### Event 918905 native ownership
+### Event 918905 native ownership and bundle construction
 
-Targeted disassembly of `/vendor/bin/hw/com.desaysv.vehicledevice@1.0-service` now proves the service binary itself materializes the framework event ID `918905` (`0x000E0579`):
+Targeted disassembly of `/vendor/bin/hw/com.desaysv.vehicledevice@1.0-service` proves the service binary itself materializes framework event ID `918905` (`0x000E0579`):
 
 - at `0x7ba8`: `mov w8, #0x579` followed at `0x7bb0` by `movk w8, #0xe, lsl #16`;
 - at `0x7ca4`: `mov w8, #0x579` followed at `0x7cac` by `movk w8, #0xe, lsl #16`.
 
-Those code regions are adjacent to two xref candidates for the exact service-side log string `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`.
+In each of those blocks the event-ID construction is immediately followed by two `VehicleBusBundle::putString(...)` calls:
 
-Therefore event `918905` is no longer merely a Java-framework constant: its numeric value is constructed in the native VehicleDevice service glue. This closes a major part of the native-to-framework ownership gap.
+- first block: `0x7bc4` and `0x7bd8`;
+- second block: `0x7cc0` and `0x7cd4`.
 
-Still not proven: the exact basic-block/function identity of both `0x7ba8` / `0x7ca4` sites, the precise `VehicleBusEvent` construction fields, and the exact call edge from those blocks to `VehicleBusStub::publish()`.
+This is PROVEN evidence that the service-side 918905 path constructs a two-string bundle. Given the upstream callback signature and framework `VDVDeviceConfigStore` decoding, the leading interpretation is that these are the property key/value pair, but the exact string-key names/argument identities still need decoding before marking that part PROVEN.
+
+The service imports `VehicleBusStub::publish(VehicleBusEvent const&)`. `readelf -rW` shows `publish` as an `R_AARCH64_ABS64` relocation at address `0x11088`, unlike `VehicleBusStub::set`, which has an ordinary `R_AARCH64_JUMP_SLOT`/PLT entry. Therefore no direct `bl publish@plt` is expected; the publish edge is likely indirect via a stored function pointer/table slot. That indirect call edge is not yet PROVEN.
+
+The event-ID sites remain in the same local code region as xrefs to `VehicleDeviceVDS::onVehiclePropertyConfigChange proKey = %s, proValue = %s`, so event 918905 is definitively owned by the native VehicleDevice service glue.
 
 ## DISPROVEN / closed unless new evidence
 
@@ -100,14 +105,21 @@ Still not proven: the exact basic-block/function identity of both `0x7ba8` / `0x
 - `/vehicle` contains the Java VehicleDevice implementation.
 - Vendor needs another broad APK/JAR search; the relevant backend is native.
 - Event `918905` exists only in the Java framework; the native service explicitly constructs `0x000E0579`.
+- A direct PLT call to `VehicleBusStub::publish()` should exist in the 918905 block; relocation evidence shows `publish` is referenced through an ABS64 data relocation instead.
 
 ## Current open question
 
-What exactly do the native service blocks around `0x7ba8` and `0x7ca4` do with event `918905`: how are the `VehicleBusEvent`/bundle key-value fields built, which block corresponds to `VehicleDeviceVDS::onVehiclePropertyConfigChange`, and where is the final `VehicleBusStub::publish()` edge? After that, inspect only conditions in that exact path for anything capable of suppressing/translating `vehicle.persist.project.ext.configs`.
+What exact service-side function owns the 918905/two-`putString` blocks, what are the two bundle field names/arguments, and how does that block invoke the `VehicleBusStub::publish` pointer relocated at `0x11088`? Once that exact publication bridge is closed, inspect only branches in that function/path for conditions capable of suppressing or transforming `vehicle.persist.project.ext.configs`.
 
 ## Next step
 
-Disassemble a narrow service range around `0x7b40-0x7d20`, capture dynamic relocations/PLT information for `VehicleBusStub::publish`, and decode the event/bundle construction around the two `918905` materialization sites.
+Resolve the narrow 918905 publication bridge only:
+
+1. disassemble the exact `0x7b80-0x7d10` blocks with raw register flow;
+2. resolve rodata/string addresses used by the two `VehicleBusBundle::putString` calls in each 918905 block;
+3. determine which arguments are property key and property value;
+4. identify the ELF section and all code xrefs to the `VehicleBusStub::publish` relocation slot at `0x11088`;
+5. prove the indirect call edge from the 918905 callback block to that slot or identify the exact wrapper/table that performs it.
 
 Do not return to broad APK guessing, OAT/VDEX hunting, or unsigned HVAC patching.
 
