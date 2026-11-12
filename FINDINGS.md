@@ -34,6 +34,12 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - During an earlier live run with signed RU05 HVAC installed on the running canonical vehicle, the user manually switched HU quick-shade day/night/auto modes and Fragrance still did not appear.
 - That historical live test did not capture whether the shade control changed Android `uiMode & 0x30`, triggered the exact `onConfigurationChanged -> destroy/rebuild` path, preserved the same process, or happened after RU05 config50 had become `1`.
 
+### New live identity evidence (2026-11-12)
+
+- User's canonical RU02/T1J car currently runs the exact signed RU05 HVAC, device-side SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, active in `/data/app/.../base.apk`; PID at the observation `13304`.
+- Stock 2026 HVAC remains installed in `/product/app/SVHvac` but is not the active APK.
+- The live RU05 config50 value is **not yet observed**; identity/PID alone do not prove Fragrance config loaded.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
