@@ -19,15 +19,11 @@ Discriminate whether the previously observed RU05 day/night/auto no-effect resul
 
 ## Next step
 
-When the vehicle returns, do not blindly repeat day/night switching.
+Vehicle is now available. As of 2026-11-12 live evidence, exact RU05 signed APK SHA matches `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, active `/data/app/.../base.apk`, PID snapshot `13304`. Stock 2026 HVAC stays at `/product/app/SVHvac`. **Identity/PID step complete.**
 
-First capture the runtime preconditions read-only:
+Current one read-only step: capture existing `adb logcat -d -v time` without clearing buffers, killing process, or changing uiMode. Filter `VDB-EXTRA-EolConfig`, `[loadConfig] carConfig1`, `VDB-EXTRA-CarConfigUtil`, `isFragranceExist`, `PROJECT_VEHICLE_PROPERTY_CONFIG_UPDATE`, and `onVDConnected`; then interpret RU05 `config1[12]` bit6 if present. Missing historical log lines are inconclusive.
 
-1. exact signed RU05 HVAC running;
-2. PID of `com.desaysv.svhvac`;
-3. focused logcat proving RU05 `isFragranceExist` / config50 state;
-4. current Android night/uiMode state;
-5. focused logcat filters for `onConfigurationChanged`, `destoryAndReshow`, `destroyHvac`, `HvacContentView init`, and `isFragranceExist`.
+After confirming config, capture current Android night/uiMode state and focused logcat filters for `onConfigurationChanged`, `destoryAndReshow`, `destroyHvac`, `HvacContentView init`, and `isFragranceExist`.
 
 Only after that evidence is live, toggle Android night mode once through ADB and observe:
 
