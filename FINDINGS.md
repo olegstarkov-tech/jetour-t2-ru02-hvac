@@ -2,6 +2,13 @@
 
 Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 
+### End-to-end successful RU05 Fragrance on RU02 — user evidence 2026-11-13
+
+- The exact signed RU05 HVAC remains SHA-verified active after full HU reboot on the official RU `00.00.02` T1J vehicle.
+- Operator confirms Fragrance entry visible, cartridge UI populated, controls functional, and **physical scent output present** ("пахнет").
+- Therefore **PROVEN at user-observable level:** Fragrance runs end-to-end through the UI and physical diffuser with RU05-on-RU02. This supersedes earlier statements that hardware output was unverified.
+- Root cause of absent CarConfigUtil startup traces after hot APK install, and whether stock RU02 HVAC can show Fragrance, remain OPEN. One successful cold boot is not a universal sufficiency/necessity proof.
+
 ## PROVEN
 
 ## SUCCESS BOOT forensic comparison — 2026-11-12 (new PROVEN runtime evidence)
