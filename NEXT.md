@@ -32,11 +32,21 @@ Discriminate whether the previously observed RU05 day/night/auto no-effect resul
 - Most promising new distinction: exact RU05 APK `CarConfigUtil.init` unconditionally logs tag `VDB-EXTRA-CarConfigUtil`, but PID13304 did not emit it at startup, whereas CarInfoProxy and other VDBus logs are present. Investigate shared framework class loading rather than assuming process-local config50=1.
 - **One next read-only step:** retrieve `BOOTCLASSPATH` and `dumpsys package com.desaysv.svhvac` library details to assess whether framework `vdbus_extra.jar` can supersede APK-embedded classes. Then decide any next probe based on evidence; no writes/reboots/config mutations.
 
-### Next distinction — live boot class path 2026-11-12
+### Next distinction — duplicate-class collision PROVEN 2026-11-12
 
-- Direct `BOOTCLASSPATH` read confirms `/system/framework/vdbus_extra.jar`, `/system/framework/vdbus.jar`, and `/system/framework/chery-platform-internal.jar` are in boot-loader search space.
-- Android parent-first class resolution makes a system-jar duplicate of RU05 `CarConfigUtil/EolConfig` a strong **hypothesis** for the missing `CarConfigUtil.init` logs, but the framework jar class inventory has not been directly verified.
-- **CURRENT ONE NEXT STEP, read-only:** pull `/system/framework/vdbus_extra.jar` from live RU02 to host, record SHA-256, upload jar; offline compare full class descriptors/methods with signed RU05 APK. Do not repeat UI-mode changes or modify vehicle properties.
+- Pulled live boot JAR and parsed 74 DEX class definitions. `CarConfigUtil`, `EolConfig`, `CarInfoProxy`, and related classes duplicate RU05 APK FQCNs; under standard Android boot-class resolution the framework implementation wins.
+- Both available RU02 decompile and RU05 smali begin `CarConfigUtil.init` with the same info log and keep config50 byte12 bit6; class overlap alone is not the cause of missing log or missing UI.
+- **NEXT:** offline inspect the exact application init and class-resolution path, and seek a safe process-local config50 read; do not repeat night-mode/reinstall experiments.
+
+### 2026-11-12 direct offline analysis: live RU02 `vdbus_extra.jar` — PROVEN
+
+- Live pull `/system/framework/vdbus_extra.jar` has 111,020 bytes, SHA256 `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`; archive contains `classes.dex` with 74 class definitions.
+- Actual parsed class-def table (not merely incidental strings) contains `Lcom/desaysv/ivi/extra/project/carconfig/CarConfigUtil;`, `EolConfig;`, `Constants;`, `ReserveConfigConstants;`, plus `Lcom/desaysv/ivi/extra/project/carinfo/proxy/CarInfoProxy;`. RU05 HVAC packaged the same fully qualified class definitions.
+- The device's BOOTCLASSPATH includes this JAR. Under normal Android parent-first PathClassLoader delegation, the boot classes win over same-name RU05 APK classes, so replacing the HVAC APK by RU05 does not replace those carconfig implementations. This is a **PROVEN class-identity collision / boot precedence**, not proof of a different ID50 result.
+- Previously retrieved RU02 framework decompile and the RU05 embedded smali both show `CarConfigUtil.init(Context)` begins with `Log.i("VDB-EXTRA-CarConfigUtil","init")`; their `getConfig(50)` paths retain `EolConfig` byte12 bit6. Therefore simply finding shadowed classes does **not** explain the missing HVAC PID13304 CarConfigUtil init log or prove config50=0.
+- Cross-check of full 2026-11-12 live log: HVAC PID13304 has `VDB-EXTRA-CarInfoProxy [init]` and successful VDBus vehicle-device binding, but **no** `VDB-EXTRA-CarConfigUtil` info log or `addSubscribe event=918905` attributable to that PID. This supports a still-OPEN discrepancy in HVAC application config initialization; do not turn log absence into proof of no calls.
+- A separate nonfatal `Resources$NotFoundException` occurs at RU05 `view/b.y0` after its Application onCreate began; its connection to Fragrance remains unproven.
+- **Next approach:** offline compare runtime-relevant call path and system JAR method bodies against RU05/HvacApplication startup and decide a safe *read-only* discriminator. No blind in-car writes, APK patching, or repeat uiMode toggles.
 
 ## Next step
 
