@@ -83,6 +83,16 @@ Result: **PROVEN positive user-visible UI/control operation** on signed RU05 HVA
 - Physical scent emission, backend action confirmation, and persistence across future reboots are not independently tested/reported.
 - No intervention or extra write was performed to achieve this observation beyond the previously recorded full HU reboot; preserve state.
 
+## E9 — End-to-end fragrance emission verified (2026-11-13)
+
+Result: **PROVEN user-observed positive physical operation**.
+
+- Tested on the canonical official T1J dealer RU02/00.00.02 with exact signed RU05 HVAC SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, active after a complete HU reboot.
+- Previous operator observation: cartridge information displayed, controls functioning.
+- New direct operator confirmation: "пахнет" — fragrance scent is physically noticeable during use.
+- Distinguish confirmed physical/user-level result from unmeasured electrical telemetry, cartridge-level sensor protocol or consistency after future cold boots; those were not instrumented.
+- Preserve stable working installation; no diagnostic action taken to obtain this confirmation.
+
 ## Experiment discipline
 
 For future tests record:
