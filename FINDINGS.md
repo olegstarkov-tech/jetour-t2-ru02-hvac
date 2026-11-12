@@ -70,6 +70,12 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - A separate nonfatal `Resources$NotFoundException` occurs at RU05 `view/b.y0` after its Application onCreate began; its connection to Fragrance remains unproven.
 - **Next approach:** offline compare runtime-relevant call path and system JAR method bodies against RU05/HvacApplication startup and decide a safe *read-only* discriminator. No blind in-car writes, APK patching, or repeat uiMode toggles.
 
+### 2026-11-12 new post-reboot Fragrance visibility observation
+
+- Direct operator evidence: Fragrance appears in the GUI **after a full HU reboot**, whereas it was absent before with signed RU05 HVAC and after an instrumented true Android day-to-night configuration change in the same process.
+- The post-reboot APK identity is unverified; confirm `pm path` and APK SHA256 before attributing visibility to RU05 or RU02.
+- This distinguishes a complete boot from in-process UI refresh and suggests an initialization-order-sensitive mechanism, but the causal process-local config50 pathway is still **OPEN**. Do not claim root cause.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
