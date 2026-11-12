@@ -1,5 +1,11 @@
 # RU02-HVAC NEXT
 
+## End-to-end operation confirmed — 2026-11-13
+
+- **SUCCESS / PROVEN:** Signed RU05 HVAC on the canonical dealer RU `00.00.02` T1J, after full HU reboot, reveals Fragrance. User confirms populated cartridge UI, functioning controls **and actual physical scent ("пахнет")**.
+- **NO MORE LIVE OPERATOR STEP REQUIRED FOR FUNCTIONAL VALIDATION.** Avoid unnecessary reboot, reinstall, uiMode change or VDBus/config writes; preserve the working configuration and logs.
+- Remaining optional technical research (offline) is exact causal divergence between hot-install failure (no HVAC-PID CarConfigUtil init log) and successful cold boot (init/subscribe/C5), and whether a native RU02-specific backend mechanism can expose Fragrance without RU05. Do not overstate the reboot as universally sufficient.
+
 ## Live operator confirmation: cartridges and Fragrance controls — 2026-11-12
 
 - **PROVEN:** After full HU reboot with verified signed RU05 HVAC, user directly confirms `Картриджи видны, все управляется`. This verifies the displayed cartridge interface and responsiveness of controls, beyond simply making the Fragrance button visible.
