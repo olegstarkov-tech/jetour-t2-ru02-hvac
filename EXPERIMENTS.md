@@ -74,6 +74,15 @@ Result: **PROVEN positive Fragrance UI after full HU reboot**, negative after ho
 
 Artifacts: user-uploaded `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed) and `RU05_FRAGRANCE_SUCCESS_BOOT.txt` (success), checked in this investigation. Successful-state rollback remains the stock RU02 system APK, but **do not perform rollback while testing/using the working RU05 UI**.
 
+## E8 — Fragrance cartridge enumeration and controls (2026-11-12)
+
+Result: **PROVEN positive user-visible UI/control operation** on signed RU05 HVAC running on dealer RU02/T1J after HU reboot.
+
+- User's direct live observation: "Картриджи видны, все управляется".
+- The Fragrance interface not only appears but shows cartridges and permits normal control interactions.
+- Physical scent emission, backend action confirmation, and persistence across future reboots are not independently tested/reported.
+- No intervention or extra write was performed to achieve this observation beyond the previously recorded full HU reboot; preserve state.
+
 ## Experiment discipline
 
 For future tests record:
