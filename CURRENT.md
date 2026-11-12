@@ -124,6 +124,16 @@ Interpretation: The old uncertainty "does day/night actually change Android uiMo
 - Normal Android parent-first class loading means any fully qualified class present in boot class path can shadow an APK-packaged class of the same name. **HYPOTHESIS:** RU05's packaged `com.desaysv.ivi.extra.project.carconfig.CarConfigUtil` and/or `EolConfig` is shadowed by classes in system `vdbus_extra.jar`; this could account for absent RU05 `CarConfigUtil.init` logging. The live framework JAR's class inventory has not yet been checked in this step; presence of the jar alone is **not proof** of any specific duplicate class or its runtime semantics.
 - One next read-only operator step: `adb pull /system/framework/vdbus_extra.jar` to PC, hash and upload for offline DEX inspection; no device writes, reinstall, night-mode toggles or config changes.
 
+### 2026-11-12 direct offline analysis: live RU02 `vdbus_extra.jar` — PROVEN
+
+- Live pull `/system/framework/vdbus_extra.jar` has 111,020 bytes, SHA256 `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`; archive contains `classes.dex` with 74 class definitions.
+- Actual parsed class-def table (not merely incidental strings) contains `Lcom/desaysv/ivi/extra/project/carconfig/CarConfigUtil;`, `EolConfig;`, `Constants;`, `ReserveConfigConstants;`, plus `Lcom/desaysv/ivi/extra/project/carinfo/proxy/CarInfoProxy;`. RU05 HVAC packaged the same fully qualified class definitions.
+- The device's BOOTCLASSPATH includes this JAR. Under normal Android parent-first PathClassLoader delegation, the boot classes win over same-name RU05 APK classes, so replacing the HVAC APK by RU05 does not replace those carconfig implementations. This is a **PROVEN class-identity collision / boot precedence**, not proof of a different ID50 result.
+- Previously retrieved RU02 framework decompile and the RU05 embedded smali both show `CarConfigUtil.init(Context)` begins with `Log.i("VDB-EXTRA-CarConfigUtil","init")`; their `getConfig(50)` paths retain `EolConfig` byte12 bit6. Therefore simply finding shadowed classes does **not** explain the missing HVAC PID13304 CarConfigUtil init log or prove config50=0.
+- Cross-check of full 2026-11-12 live log: HVAC PID13304 has `VDB-EXTRA-CarInfoProxy [init]` and successful VDBus vehicle-device binding, but **no** `VDB-EXTRA-CarConfigUtil` info log or `addSubscribe event=918905` attributable to that PID. This supports a still-OPEN discrepancy in HVAC application config initialization; do not turn log absence into proof of no calls.
+- A separate nonfatal `Resources$NotFoundException` occurs at RU05 `view/b.y0` after its Application onCreate began; its connection to Fragrance remains unproven.
+- **Next approach:** offline compare runtime-relevant call path and system JAR method bodies against RU05/HvacApplication startup and decide a safe *read-only* discriminator. No blind in-car writes, APK patching, or repeat uiMode toggles.
+
 ## LIKELY
 
 ### Current RU02-generation root cause
@@ -165,16 +175,8 @@ If those conditions are all observed and the button still remains absent, the st
 
 ## Current open question
 
-Did the prior quick-shade day/night/auto switching actually execute the exact Android `uiMode` configuration-change rebuild **after RU05 config50 had become 1**? If yes, the stale-binding workaround is effectively disproven. If no, a controlled ADB/logcat test remains necessary.
+The night-mode transition was a genuine Android `uiMode` change handled by RU05 HVAC PID13304, but Fragrance stayed absent. The 2026-11-12 boot-path JAR contains duplicate carconfig classes, so the RU05 embedded config stack is shadowed under standard Android class loading. Why are there no CarConfigUtil init/subscription traces from the HVAC PID, and what is the process-local value of EolConfig config50? Root cause remains OPEN.
 
 ## Next step
 
-When the canonical vehicle is available, do not start by blindly toggling night mode again. First establish the runtime preconditions read-only:
-
-1. run exact signed RU05 HVAC;
-2. capture PID;
-3. prove from logs/runtime that RU05 `isFragranceExist` / config50 is `1`;
-4. capture current Android `uiMode` and start focused logcat;
-5. only then trigger one reversible ADB `uiMode` change and verify whether the exact `onConfigurationChanged -> destoryAndReshow -> destroyHvac -> I0/t1` chain executes with the same PID.
-
-Do not install additional RU05 components, patch Desay APKs, or blind-write VDBus/properties.
+Prioritize offline decompile comparison of live RU02 boot JAR against RU05 startup/config methods, especially the apparent discrepancy between unconditional `CarConfigUtil.init` call/log and no corresponding HVAC PID13304 line. When needed, one focused read-only live probe, chosen from that comparison. No repeated blind uiMode toggles, config writes or APK patching.
