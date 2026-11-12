@@ -17,6 +17,15 @@ Discriminate whether the previously observed RU05 day/night/auto no-effect resul
 - Historical direct live evidence: while signed RU05 HVAC was installed on the running canonical vehicle, the user manually switched HU quick-shade day/night/auto modes and Fragrance did not appear.
 - That historical test did not capture whether the shade switch actually changed Android `uiMode & 0x30`, triggered the exact rebuild, preserved the same PID, or occurred after RU05 `getConfig(50)` became `1`.
 
+### Updated live state, 2026-11-12
+
+- DONE: exact RU05 APK identity (SHA), PID 13304, backend ext config byte12=C5/ID50=1; 297,718-line logcat analyzed.
+- DONE: at 16:26:00 Android night-mode changed from 16 to 32; same RU05 PID ran `HvacApplication.onConfigurationChanged -> b()` and its Handler branch. Repeating an uninstrumented night toggle is unnecessary.
+- NOT YET PROVEN: RU05's own in-process `mCarConfig1[12]` / `OfflineConfigManager.e()=true`. C5 backend request at 16:20:59 belongs to unrelated log uploader process PID 13373.
+- NOT YET OBSERVED: UI Fragrance visibility after the 16:26 refresh. Ask for a direct visual observation first; do not assume it stayed hidden or appeared from log alone.
+- If hidden, shift next targeted diagnostic toward RU05 `CarConfigUtil/EolConfig` class-loading and actual getConfig(50) runtime path before any additional UI/theme tests. Static source says init should happen; `VDB-EXTRA-CarConfigUtil` lines absent specifically from PID 13304 while other clients log them, but absence is inconclusive.
+- Also record nonfatal RU05 `Resources$NotFoundException` 0x7f0f00a0 in `view/b.I0` as separate runtime anomaly; do not assign root cause yet.
+
 ## Next step
 
 Vehicle is now available. As of 2026-11-12 live evidence, exact RU05 signed APK SHA matches `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, active `/data/app/.../base.apk`, PID snapshot `13304`. Stock 2026 HVAC stays at `/product/app/SVHvac`. **Identity/PID step complete.**
