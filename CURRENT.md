@@ -117,6 +117,13 @@ Full user log `RU05_FRAGRANCE_CONFIG_LOG.txt` was analyzed locally (297,718 line
 
 Interpretation: The old uncertainty "does day/night actually change Android uiMode on this car and invoke RU05 b()?" is **resolved positively for this 16:26 event**. Remaining blocker: **RU05 process-local config50 state and observed UI result**. Do not repeat blind night toggles to prove a trigger already observed.
 
+### Live BOOTCLASSPATH evidence — 2026-11-12
+
+- Direct ADB `printenv BOOTCLASSPATH` shows `/system/framework/vdbus_extra.jar:/system/framework/vdbus.jar:/system/framework/chery-platform-internal.jar` at the end of the boot class path (alongside standard Android framework jars).
+- `dumpsys package com.desaysv.svhvac | Select-String 'usesLibraries|usesLibraryFiles|usesOptionalLibraries|codePath|sharedUserId'` returned only active `/data/app/.../com.desaysv.svhvac...` and original `/product/app/SVHvac` codePaths; no matching uses-library lines in that filtered output. This does **not** exclude BOOTCLASSPATH class loading.
+- Normal Android parent-first class loading means any fully qualified class present in boot class path can shadow an APK-packaged class of the same name. **HYPOTHESIS:** RU05's packaged `com.desaysv.ivi.extra.project.carconfig.CarConfigUtil` and/or `EolConfig` is shadowed by classes in system `vdbus_extra.jar`; this could account for absent RU05 `CarConfigUtil.init` logging. The live framework JAR's class inventory has not yet been checked in this step; presence of the jar alone is **not proof** of any specific duplicate class or its runtime semantics.
+- One next read-only operator step: `adb pull /system/framework/vdbus_extra.jar` to PC, hash and upload for offline DEX inspection; no device writes, reinstall, night-mode toggles or config changes.
+
 ## LIKELY
 
 ### Current RU02-generation root cause
