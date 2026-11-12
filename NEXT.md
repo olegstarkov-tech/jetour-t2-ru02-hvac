@@ -26,6 +26,12 @@ Discriminate whether the previously observed RU05 day/night/auto no-effect resul
 - If hidden, shift next targeted diagnostic toward RU05 `CarConfigUtil/EolConfig` class-loading and actual getConfig(50) runtime path before any additional UI/theme tests. Static source says init should happen; `VDB-EXTRA-CarConfigUtil` lines absent specifically from PID 13304 while other clients log them, but absence is inconclusive.
 - Also record nonfatal RU05 `Resources$NotFoundException` 0x7f0f00a0 in `view/b.I0` as separate runtime anomaly; do not assign root cause yet.
 
+### Live result update — 2026-11-12
+
+- Operator confirms **Fragrance still absent** after the real 16:26:00 Android day/night event handled by signed RU05 HVAC PID13304. No more blind uiMode toggling; it did not solve the problem.
+- Most promising new distinction: exact RU05 APK `CarConfigUtil.init` unconditionally logs tag `VDB-EXTRA-CarConfigUtil`, but PID13304 did not emit it at startup, whereas CarInfoProxy and other VDBus logs are present. Investigate shared framework class loading rather than assuming process-local config50=1.
+- **One next read-only step:** retrieve `BOOTCLASSPATH` and `dumpsys package com.desaysv.svhvac` library details to assess whether framework `vdbus_extra.jar` can supersede APK-embedded classes. Then decide any next probe based on evidence; no writes/reboots/config mutations.
+
 ## Next step
 
 Vehicle is now available. As of 2026-11-12 live evidence, exact RU05 signed APK SHA matches `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, active `/data/app/.../base.apk`, PID snapshot `13304`. Stock 2026 HVAC stays at `/product/app/SVHvac`. **Identity/PID step complete.**
