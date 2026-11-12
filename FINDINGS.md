@@ -40,6 +40,13 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - Stock 2026 HVAC remains installed in `/product/app/SVHvac` but is not the active APK.
 - The live RU05 config50 value is **not yet observed**; identity/PID alone do not prove Fragrance config loaded.
 
+### 2026-11-12 live logcat — new proven boundaries
+
+- The exact signed RU05 process was PID `13304` starting at 16:20:53, and the same PID handled a real Android `uiMode & 0x30` change from day (16) to night (32) at 16:26:00: `HvacApplication.onConfigurationChanged -> b()` followed by `HvacApplication$a.handleMessage`. Thus the real OS configuration-change trigger and RU05 rebuild coordinator executed, not just a cosmetic quick-shade theme change.
+- Backend `vehicle.persist.project.ext.configs` read at 16:20:59 contains byte12 `C5`, config50=1, but the requester was `com.desaysv.svuploadlogapp` PID 13373, not RU05 HVAC. No proof of RU05 process-local `mCarConfig1` / `getConfig(50)` yet.
+- No `VDB-EXTRA-EolConfig` or `isFragranceExist` logs anywhere in capture; no `VDB-EXTRA-CarConfigUtil` log from RU05 PID 13304. These absences are NOT proof of no calls and not proof of false gate.
+- RU05 startup logged `Resources$NotFoundException: String resource ID #0x7f0f00a0` inside `view/b.y0 -> K0 -> O0 -> I0`; the process continued. Treat as an independent runtime anomaly, not Fragrance root cause without evidence.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
