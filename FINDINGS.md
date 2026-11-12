@@ -73,7 +73,8 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 ### 2026-11-12 new post-reboot Fragrance visibility observation
 
 - Direct operator evidence: Fragrance appears in the GUI **after a full HU reboot**, whereas it was absent before with signed RU05 HVAC and after an instrumented true Android day-to-night configuration change in the same process.
-- The post-reboot APK identity is unverified; confirm `pm path` and APK SHA256 before attributing visibility to RU05 or RU02.
+- **PROVEN:** Post-reboot `pm path` points to `/data/app/.../com.desaysv.svhvac-.../base.apk`, and **live SHA256 is `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`**, exactly matching the audited signed RU05 HVAC. PID post reboot is `7601` versus pre-reboot `13304`. Thus the visible Fragrance entry belongs to active **RU05**, not the preinstalled RU02 package.
+- Result establishes a **successful post-reboot RU05 Fragrance UI appearance** after a negative same-process Android night-mode reconstruction test. Physical fragrance operation is not yet verified, and startup-order causation is a hypothesis, not proof.
 - This distinguishes a complete boot from in-process UI refresh and suggests an initialization-order-sensitive mechanism, but the causal process-local config50 pathway is still **OPEN**. Do not claim root cause.
 
 ## LIKELY
