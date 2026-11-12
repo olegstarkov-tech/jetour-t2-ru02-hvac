@@ -2,9 +2,9 @@
 
 ## Critical live follow-up — 2026-11-12
 
-**New direct observation:** User rebooted HU and reported Fragrance/Aromatization is now visible. Unlike earlier day/night refresh, this is a successful visual state but **the active APK has not yet been identified**.
+**New direct observation + APK verification:** After head-unit reboot, Fragrance/Aromatization is now **visible** with the exact signed RU05 HVAC active: `/data/app/~~ReYPfSxE7hU_esE2vR25pg==/com.desaysv.svhvac-CQIUkgXPxSaJCkFmnERMPA==/base.apk` and SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`; post-reboot PID `7601` (old PID `13304`). This definitively attributes successful UI appearance to RU05, but not hardware fragrance functionality or a proven boot-order root cause.
 
-**Only immediate operator step (read-only):** `adb shell pm path com.desaysv.svhvac`, `adb shell sha256sum <returned APK path>`, and `adb shell pidof com.desaysv.svhvac`; compare hash with known signed RU05 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`. Preserve success. Once identity is known, save post-boot logs before volatile ring buffers wrap. Do not reboot, reinstall, toggle night-mode, or alter carconfig.
+**Current one operator step (read-only):** dump existing full post-reboot `adb logcat -d -v time` into a dated file on host before ring buffers wrap; include enough surrounding context to attribute class/config initialization to HVAC PID7601 vs other processes; do not clear logs, force-stop HVAC, change uiMode, reboot, reinstall, or alter car config. Follow up with focused offline comparison of successful and failed boot logs.
 
 ## Current objective
 
