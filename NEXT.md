@@ -1,5 +1,11 @@
 # RU02-HVAC NEXT
 
+## Critical live follow-up — 2026-11-12
+
+**New direct observation:** User rebooted HU and reported Fragrance/Aromatization is now visible. Unlike earlier day/night refresh, this is a successful visual state but **the active APK has not yet been identified**.
+
+**Only immediate operator step (read-only):** `adb shell pm path com.desaysv.svhvac`, `adb shell sha256sum <returned APK path>`, and `adb shell pidof com.desaysv.svhvac`; compare hash with known signed RU05 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`. Preserve success. Once identity is known, save post-boot logs before volatile ring buffers wrap. Do not reboot, reinstall, toggle night-mode, or alter carconfig.
+
 ## Current objective
 
 Discriminate whether the previously observed RU05 day/night/auto no-effect result actually exercised the proven Android configuration-change rebuild after config50 was already loaded.
