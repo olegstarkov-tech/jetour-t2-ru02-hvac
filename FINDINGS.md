@@ -60,6 +60,16 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - If `com.desaysv.ivi.extra.project.carconfig.CarConfigUtil` or `EolConfig` appears in the boot-path jar, parent-first lookup is a technically grounded mechanism for shadowing packaged RU05 implementations.
 - The duplicated class descriptors and their exact runtime behavior are **unverified** pending offline extraction of the system jar. The previous absence of expected logging remains evidence worth investigating but does not prove class substitution by itself.
 
+### 2026-11-12 direct offline analysis: live RU02 `vdbus_extra.jar` — PROVEN
+
+- Live pull `/system/framework/vdbus_extra.jar` has 111,020 bytes, SHA256 `48c9eae627c738a08ff06086d2784162ae3859ad644d6e9a401f42c266356bea`; archive contains `classes.dex` with 74 class definitions.
+- Actual parsed class-def table (not merely incidental strings) contains `Lcom/desaysv/ivi/extra/project/carconfig/CarConfigUtil;`, `EolConfig;`, `Constants;`, `ReserveConfigConstants;`, plus `Lcom/desaysv/ivi/extra/project/carinfo/proxy/CarInfoProxy;`. RU05 HVAC packaged the same fully qualified class definitions.
+- The device's BOOTCLASSPATH includes this JAR. Under normal Android parent-first PathClassLoader delegation, the boot classes win over same-name RU05 APK classes, so replacing the HVAC APK by RU05 does not replace those carconfig implementations. This is a **PROVEN class-identity collision / boot precedence**, not proof of a different ID50 result.
+- Previously retrieved RU02 framework decompile and the RU05 embedded smali both show `CarConfigUtil.init(Context)` begins with `Log.i("VDB-EXTRA-CarConfigUtil","init")`; their `getConfig(50)` paths retain `EolConfig` byte12 bit6. Therefore simply finding shadowed classes does **not** explain the missing HVAC PID13304 CarConfigUtil init log or prove config50=0.
+- Cross-check of full 2026-11-12 live log: HVAC PID13304 has `VDB-EXTRA-CarInfoProxy [init]` and successful VDBus vehicle-device binding, but **no** `VDB-EXTRA-CarConfigUtil` info log or `addSubscribe event=918905` attributable to that PID. This supports a still-OPEN discrepancy in HVAC application config initialization; do not turn log absence into proof of no calls.
+- A separate nonfatal `Resources$NotFoundException` occurs at RU05 `view/b.y0` after its Application onCreate began; its connection to Fragrance remains unproven.
+- **Next approach:** offline compare runtime-relevant call path and system JAR method bodies against RU05/HvacApplication startup and decide a safe *read-only* discriminator. No blind in-car writes, APK patching, or repeat uiMode toggles.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
