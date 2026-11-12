@@ -47,6 +47,13 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - No `VDB-EXTRA-EolConfig` or `isFragranceExist` logs anywhere in capture; no `VDB-EXTRA-CarConfigUtil` log from RU05 PID 13304. These absences are NOT proof of no calls and not proof of false gate.
 - RU05 startup logged `Resources$NotFoundException: String resource ID #0x7f0f00a0` inside `view/b.y0 -> K0 -> O0 -> I0`; the process continued. Treat as an independent runtime anomaly, not Fragrance root cause without evidence.
 
+### RU05 night-mode test outcome (2026-11-12 direct operator observation)
+
+- With verified signed RU05 APK active (PID13304), a real Android day->night configuration change at 16:26 caused RU05 `HvacApplication.onConfigurationChanged` and handler execution, and the operator confirms **Fragrance did NOT become visible** afterward.
+- Direct runtime evidence of unsubscribing/re-subscribing CarInfo listeners before/after handler supports UI teardown/rebuild; runtime `t1()` invocation not independently logged.
+- Simple day/night UI refresh as a successful workaround is ruled out for the observed test. In-process RU05 config50 remains unknown; backend config50=1 was read by *another* app.
+- RU05 embedded `CarConfigUtil.init` has an unconditional `Log.i("VDB-EXTRA-CarConfigUtil", "init")` before VDBus initialization; PID13304 emitted no such message, even though `VDB-EXTRA-CarInfoProxy init` occurred. Treat runtime class source / system jar shadowing as a **hypothesis**, not proven.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
