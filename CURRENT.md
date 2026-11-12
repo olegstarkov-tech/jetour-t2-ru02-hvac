@@ -4,6 +4,31 @@ Status: active
 Canonical branch: `main`
 Recovery marker: `RU02-HVAC-CONTINUE`
 
+## SUCCESS BOOT forensic comparison — 2026-11-12 (new PROVEN runtime evidence)
+
+Direct user log files analyzed: `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed after hot APK update, 31,884,609 B; PID 13304) and `RU05_FRAGRANCE_SUCCESS_BOOT.txt` (successful after full HU reboot, 20,779,601 B; PID 7601, 182,058 lines). Both runs used the exact signed RU05 HVAC, SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
+
+### Failed RU05 launch, 16:20:53 (entry ABSENT)
+
+- HVAC PID `13304` initialized `CarInfoProxy`, bound VehicleDevice and other services and rendered UI. **No** log `VDB-EXTRA-CarConfigUtil: init`, **no** CarConfigUtil `[onVDConnected]`, and **no** event `918905` subscribe from PID13304 across the full failed log. This negative-log evidence alone does not prove a method was never invoked, especially because RU05 static `HvacApplication.onCreate()` unconditionally calls `CarConfigUtil.init()` before `CarInfoProxy.init()`.
+- The VehicleDevice `get(e0006)` attributable by timing to PID13304 at `16:20:53.233` requested **`vehicle.persist.project.pn`**, not ext.configs. (Earlier `C5` backend read at 16:20:59 was by different PID13373 `svuploadlogapp`.)
+- At `16:20:53.317` PID13304 emitted nonfatal `Resources$NotFoundException: String resource ID #0x7f0f00a0` through `view/b.y0 -> K0 -> O0 -> I0 -> HvacApplication.onCreate`. Whether relevant is OPEN.
+- At `16:26:00` a real Android day->night config change invoked RU05 stock rebuild coordination, but Fragrance remained absent per operator.
+
+### Successful cold HU boot, 17:05:35 (entry VISIBLE)
+
+- `17:05:35.048`: `I/VDB-EXTRA-CarConfigUtil(7601): init`.
+- `17:05:35.111`: `VDConnector(7601)` confirms `onVDBusConnected` to VehicleDevice; `17:05:35.113`: `I/VDB-EXTRA-CarConfigUtil(7601): [onVDConnected] VDServiceDef.ServiceType.VEHICLE_DEVICE`.
+- `17:05:35.114`: `VDConnector(7601): [addSubscribe] event=918905`, and `17:05:35.118`: backend `subscribe(...eventList[0]=e0579, pid=7601, packageName=com.desaysv.svhvac)`.
+- `17:05:35.123`: within that very same connection/initialization sequence VehicleDevice handles `get(e0006)` for **`vehicle.persist.project.ext.configs`**, returning `b50197b55012513034300000c50a0004800c0010000100050100e10800000000` at `17:05:35.126`. This is exactly 32 bytes; index12=`0xC5`, config50=`1`. Temporal and static-call correlation strongly attribute this request to RU05 CarConfigUtil/EolConfig, though VehicleDevice's `get` line lacks explicit caller PID; do not overclaim direct caller identity/proof of static field content.
+- RU05 `CarInfoProxy.init` follows at `17:05:35.152`, after CarConfigUtil connect and config read.
+- No `Resources$NotFoundException` occurs in the entire 182,058-line success capture. No `VDB-EXTRA-EolConfig` or explicit `isFragranceExist` log occurs, so direct measurement of static `mCarConfig1[12]` remains unproven.
+- On-device APK hash and `pidof` prove this is RU05 PID `7601`; operator visually confirms Fragrance entry visible.
+
+### Interpretation
+
+**PROVEN:** complete HU reboot with already-installed signed RU05 produces successful Fragrance UI entry; this successful boot contains the in-HVAC CarConfigUtil initialization + VDBus `918905` subscription + C5 ext-config read sequence that was absent in the failed hot-install launch. This is the strongest **process-initialization-path contrast**, not yet proof of why the `CarConfigUtil.init` path was not logged during hot-install despite the static unconditional call. Full reboot is a **demonstrated successful procedure in this one live A/B test**, not yet validated as universally necessary or sufficient. Root cause and whether fragrance hardware actuates remain OPEN. Do not perturb the presently successful state with blind writes/restarts.
+
 ## NEW LIVE EVIDENCE — 2026-11-12, fragrance visible after HU reboot
 
 - The user directly reports that **Fragrance/Aromatization appeared in the vehicle UI after rebooting the head unit**. This supersedes the earlier observation of absence, but only for the *post-reboot* state.
@@ -11,7 +36,7 @@ Recovery marker: `RU02-HVAC-CONTINUE`
 - **PROVEN after reboot:** `pm path` identifies active `/data/app/~~ReYPfSxE7hU_esE2vR25pg==/com.desaysv.svhvac-CQIUkgXPxSaJCkFmnERMPA==/base.apk`; live `sha256sum` exactly `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, identical to the signed, previously audited RU05 HVAC. `pidof com.desaysv.svhvac` returns **7601** (earlier pre-reboot RU05 process was 13304). The user directly observes **Fragrance/Aromatization entry visible** in this post-reboot state.
 - **PROVEN experiment outcome:** RU05-on-RU02 did not show the Fragrance entry immediately after APK update or following an instrumented same-process Android day/night configuration change; it **does display the entry after a complete head-unit reboot**. This proves successful OEM *UI entry exposure* for the RU05 APK on the canonical RU02 vehicle, **not yet fragrance hardware activation/operation**, and does not identify the causal loading sequence.
 - **LIKELY / HYPOTHESIS ONLY:** Complete HU boot changes VDBus/CarConfigUtil initialization timing compared with in-process night-mode binding refresh. The appearance could also be another mechanism. Preserve working live state; no reinstall, restart, configuration writes or UI toggling until active APK identity and boot logs are captured.
-- **IMMEDIATE NEXT STEP:** preserve `adb logcat -d` from this successful boot **now**, ideally full buffers, plus PID-specific entries; read-only, no uiMode change/reboot/reinstall. Then determine whether HVAC PID7601 now logs `CarConfigUtil.init`, `EolConfig.loadConfig`, `carConfig1=C5` and associated startup ordering. Distinguish positive UI from untested fragrance hardware.
+- **DONE:** Full post-reboot log captured and analyzed; see successful-boot forensic comparison above. **NEXT:** preserve the working state and confirm UI entry interaction/hardware functionality separately when appropriate, without treating GUI exposure as hardware actuation.
 
 ## Bench
 
@@ -122,7 +147,7 @@ Full user log `RU05_FRAGRANCE_CONFIG_LOG.txt` was analyzed locally (297,718 line
 - `16:20:59.502-16:20:59.504` VehicleDevice backend returned `vehicle.persist.project.ext.configs=b50197b55012513034300000c50a0004800c0010000100050100e10800000000` (32 bytes; byte12=`C5`, config50=1). **Important attribution:** concurrent request was initiated by PID `13373`, `com.desaysv.svuploadlogapp`, which logged `VDB-EXTRA-CarConfigUtil init/onVDConnected` and subscription event 918905, **not HVAC PID 13304**. This proves backend stores bit6=1, not that RU05 process loaded it.
 - `16:26:00.388` Android night-mode genuinely changed `16 -> 32` without language change; system UiModeManager applied configuration. The existing RU05 PID `13304` executed `HvacApplication.onConfigurationChanged -> b() -> HvacService.d` at `16:26:00.435`; same PID later reached `HvacApplication$a.handleMessage -> HvacService.d` at `16:26:00.880`. This confirms the exact stock configuration-change and handler code actually executed at runtime after startup, without HVAC process death. Exact `t1()` is statically reachable; there is no direct runtime t1 log in this capture.
 - Full log contains **zero** `VDB-EXTRA-EolConfig`, `[loadConfig] carConfig1`, `isFragranceExist` lines and no `VDB-EXTRA-CarConfigUtil` records from PID `13304`. Absence of these lines does **not prove** calls never occurred or predicate=false. Other clients log CarConfigUtil normally; RU05 class-loader/logging path now merits targeted checking if UI stays hidden.
-- The user has not yet confirmed whether the Fragrance button was visible immediately after this 16:26 live rebuild; do not infer the outcome from the log alone.
+- Retrospective clarification: the user later confirmed Fragrance **remained absent** after the 16:26 rebuild, but **appeared** after full HU reboot with the same RU05 APK.
 
 Interpretation: The old uncertainty "does day/night actually change Android uiMode on this car and invoke RU05 b()?" is **resolved positively for this 16:26 event**. Remaining blocker: **RU05 process-local config50 state and observed UI result**. Do not repeat blind night toggles to prove a trigger already observed.
 
