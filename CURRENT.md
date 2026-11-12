@@ -4,6 +4,14 @@ Status: active
 Canonical branch: `main`
 Recovery marker: `RU02-HVAC-CONTINUE`
 
+## NEW LIVE EVIDENCE — 2026-11-12, fragrance visible after HU reboot
+
+- The user directly reports that **Fragrance/Aromatization appeared in the vehicle UI after rebooting the head unit**. This supersedes the earlier observation of absence, but only for the *post-reboot* state.
+- Before the reboot, the exact signed RU05 HVAC had been running from `/data/app` (SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`) and Fragrance stayed absent after a true Android uiMode change.
+- **NOT YET PROVEN:** Which HVAC APK is active *after* reboot; user has been given read-only `pm path`, `sha256sum`, `pidof` checks and has not provided the results yet. Never assert that RU05 was the visible one until the hash matches.
+- **LIKELY / HYPOTHESIS ONLY:** Complete HU boot changes VDBus/CarConfigUtil initialization timing compared with in-process night-mode binding refresh. The appearance could also be another mechanism. Preserve working live state; no reinstall, restart, configuration writes or UI toggling until active APK identity and boot logs are captured.
+- **IMMEDIATE NEXT STEP:** verify active HVAC APK path+hash+PID after reboot without altering the car; then retain logcat from this successful boot while available.
+
 ## Bench
 
 Jetour T2 / T1J, official RU, Desay SV 8155, dealer firmware 00.00.02, telematics present.
