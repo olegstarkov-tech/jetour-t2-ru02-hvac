@@ -95,6 +95,14 @@ Exact signed RU05 HVAC: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca854
 
 `HvacService` is exported and `onStartCommand()` reads string extra `type`. Static dispatch contains stock commands including `OPEN_PANEL`, `CLOSE_PANEL`, `CONTROL_PANEL`, `SSS`, `HHH`, and VR open/close-fragment commands. Current evidence still does not prove those commands themselves perform the full reinflate; the configuration-change path is the proven refresh primitive.
 
+### Live Fragrance visibility confirmation — 2026-11-12
+
+- User directly confirmed: after the **real** 16:26 Android day(16) -> night(32) configuration event, with the identical signed RU05 process PID 13304 running and stock `HvacApplication.onConfigurationChanged -> b() -> Handler` callbacks observed, **the Fragrance button remained absent**.
+- **PROVEN negative test:** changing Android night mode is NOT sufficient to expose Fragrance on this car with RU05 HVAC. Do not repeat uninstrumented day/night switches.
+- Earlier capture shows the RU05 PID 13304 unsubscribed from carinfo callbacks at 16:26:00.396–.432 and re-subscribed at .588–.627, consistent with UI teardown/reinitialization. A direct `t1()` runtime log is absent, so label the exact new bottom view execution as static inference, not independently logged.
+- **OPEN:** RU05 in-process `CarConfigUtil/EolConfig` state: RU05 APK's `CarConfigUtil.init` contains unconditional Android `Log.i("VDB-EXTRA-CarConfigUtil", "init")`, yet no such tag from PID 13304 occurs in full log; `CarInfoProxy` `[init]` does appear. This is noteworthy evidence supporting possible class resolution/framework shadowing or alternative runtime implementation, not proof yet.
+- Next focused read-only diagnostic: inspect device `BOOTCLASSPATH` and `dumpsys package` for shared/uses-library class sources; determine if framework `vdbus_extra.jar` could take precedence over embedded RU05 config classes. Do not probe Java static state with invented Binder transactions, alter configs, reinstall or toggle blindly.
+
 ### Live logcat investigation — 2026-11-12, PROVEN / OPEN
 
 Full user log `RU05_FRAGRANCE_CONFIG_LOG.txt` was analyzed locally (297,718 lines). Key timeline:
