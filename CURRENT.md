@@ -4,6 +4,17 @@ Status: active
 Canonical branch: `main`
 Recovery marker: `RU02-HVAC-CONTINUE`
 
+## PROVEN END-TO-END SUCCESS — 2026-11-13 direct live operator evidence
+
+- Canonical official RU T1J/Jetour T2, Desay SV8155 dealer RU firmware `00.00.02`, telematics: after installation of the exact **signed RU05 HVAC** (SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`) and **full head-unit reboot**, the user directly confirms:
+  1. Fragrance UI entry appears;
+  2. cartridges appear and are detected in the stock UI;
+  3. all presented Fragrance controls operate;
+  4. **physical fragrance scent is perceptible when used** (operator's explicit answer: "пахнет").
+- **PROVEN:** end-to-end user-observable Fragrance operation (UI, cartridge indication, controls, physical scent output) on the RU02 vehicle **with signed RU05 HVAC active**, not just a visible button.
+- **PROVEN reproducibility boundary:** one successful full HU reboot with RU05 after earlier unsuccessful hot-install/UI theme toggle. The exact condition responsible for failed CarConfigUtil initialization on hot install has not been causally isolated; full reboot is an observed successful procedure, not a proof every reboot guarantees success or that RU02 stock HVAC can expose Fragrance.
+- **Preserve working state:** no more reboots, installs, config modifications, APK patches or VDBus writes solely to probe the feature. Remaining investigation should be offline unless necessary and authorized. Original RU02 HVAC remains beneath the `/data/app` updated-system-app overlay.
+
 ## SUCCESS BOOT forensic comparison — 2026-11-12 (new PROVEN runtime evidence)
 
 Direct user log files analyzed: `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed after hot APK update, 31,884,609 B; PID 13304) and `RU05_FRAGRANCE_SUCCESS_BOOT.txt` (successful after full HU reboot, 20,779,601 B; PID 7601, 182,058 lines). Both runs used the exact signed RU05 HVAC, SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
