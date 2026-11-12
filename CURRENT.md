@@ -95,6 +95,20 @@ Exact signed RU05 HVAC: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca854
 
 `HvacService` is exported and `onStartCommand()` reads string extra `type`. Static dispatch contains stock commands including `OPEN_PANEL`, `CLOSE_PANEL`, `CONTROL_PANEL`, `SSS`, `HHH`, and VR open/close-fragment commands. Current evidence still does not prove those commands themselves perform the full reinflate; the configuration-change path is the proven refresh primitive.
 
+### Live logcat investigation — 2026-11-12, PROVEN / OPEN
+
+Full user log `RU05_FRAGRANCE_CONFIG_LOG.txt` was analyzed locally (297,718 lines). Key timeline:
+
+- `16:20:34.548` Android installed RU05 update and switched `com.desaysv.svhvac` system package code path to `/data/app/...`, while retaining data.
+- `16:20:53.132-16:20:53.172` system started process PID `13304` for `com.desaysv.svhvac.service.HvacService`; startup reports `VDRouter client=com.desaysv.svhvac` and binds `VEHICLE_DEVICE` by `16:20:53.233`.
+- `16:20:53.317` RU05 `view/b.y0 -> K0 -> O0 -> I0 -> HvacApplication.onCreate` logs a caught/reported `Resources$NotFoundException: String resource ID #0x7f0f00a0`. It did not terminate PID 13304; its relation to Fragrance is unproven.
+- `16:20:59.502-16:20:59.504` VehicleDevice backend returned `vehicle.persist.project.ext.configs=b50197b55012513034300000c50a0004800c0010000100050100e10800000000` (32 bytes; byte12=`C5`, config50=1). **Important attribution:** concurrent request was initiated by PID `13373`, `com.desaysv.svuploadlogapp`, which logged `VDB-EXTRA-CarConfigUtil init/onVDConnected` and subscription event 918905, **not HVAC PID 13304**. This proves backend stores bit6=1, not that RU05 process loaded it.
+- `16:26:00.388` Android night-mode genuinely changed `16 -> 32` without language change; system UiModeManager applied configuration. The existing RU05 PID `13304` executed `HvacApplication.onConfigurationChanged -> b() -> HvacService.d` at `16:26:00.435`; same PID later reached `HvacApplication$a.handleMessage -> HvacService.d` at `16:26:00.880`. This confirms the exact stock configuration-change and handler code actually executed at runtime after startup, without HVAC process death. Exact `t1()` is statically reachable; there is no direct runtime t1 log in this capture.
+- Full log contains **zero** `VDB-EXTRA-EolConfig`, `[loadConfig] carConfig1`, `isFragranceExist` lines and no `VDB-EXTRA-CarConfigUtil` records from PID `13304`. Absence of these lines does **not prove** calls never occurred or predicate=false. Other clients log CarConfigUtil normally; RU05 class-loader/logging path now merits targeted checking if UI stays hidden.
+- The user has not yet confirmed whether the Fragrance button was visible immediately after this 16:26 live rebuild; do not infer the outcome from the log alone.
+
+Interpretation: The old uncertainty "does day/night actually change Android uiMode on this car and invoke RU05 b()?" is **resolved positively for this 16:26 event**. Remaining blocker: **RU05 process-local config50 state and observed UI result**. Do not repeat blind night toggles to prove a trigger already observed.
+
 ## LIKELY
 
 ### Current RU02-generation root cause
