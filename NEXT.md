@@ -1,14 +1,16 @@
 # RU02-HVAC NEXT
 
-## Critical live follow-up — 2026-11-12
+## Updated priority after SUCCESS log analysis — 2026-11-12
 
-**New direct observation + APK verification:** After head-unit reboot, Fragrance/Aromatization is now **visible** with the exact signed RU05 HVAC active: `/data/app/~~ReYPfSxE7hU_esE2vR25pg==/com.desaysv.svhvac-CQIUkgXPxSaJCkFmnERMPA==/base.apk` and SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`; post-reboot PID `7601` (old PID `13304`). This definitively attributes successful UI appearance to RU05, but not hardware fragrance functionality or a proven boot-order root cause.
-
-**Current one operator step (read-only):** dump existing full post-reboot `adb logcat -d -v time` into a dated file on host before ring buffers wrap; include enough surrounding context to attribute class/config initialization to HVAC PID7601 vs other processes; do not clear logs, force-stop HVAC, change uiMode, reboot, reinstall, or alter car config. Follow up with focused offline comparison of successful and failed boot logs.
+- **COMPLETE/PROVEN:** RU05 confirmed running by SHA and PID7601 after full HU reboot; Fragrance button appears.
+- **COMPLETE/PROVEN:** Successful boot captured and compared with hot-install failure. At 17:05:35.048 RU05 PID7601 logged `CarConfigUtil.init`; at .113 `onVDConnected`; at .114 subscribed to 918905; at .123–.126 VehicleDevice read `vehicle.persist.project.ext.configs` ending in C5 at byte12 (config50=1). `CarInfoProxy.init` happened at .152.
+- Failed PID13304 launched UI and `CarInfoProxy` but did not log CarConfigUtil init, onVDConnected or own 918905 subscription; its early vehicle `get(e0006)` at 16:20:53.233 read `vehicle.persist.project.pn` only. A post-install `Resources$NotFoundException` was absent from success boot.
+- **LIKELY:** config initialization ordering/path explains visible/hidden difference. **OPEN:** exact reason hot-install run lacked CarConfigUtil init trace even though static onCreate calls it; no direct measurement of in-process `mCarConfig1[12]`; no proof of actual fragrance hardware operation.
+- **ONE NEXT SAFE STEP:** preserve the successful state; when the user is ready, verify from the existing exposed Fragrance panel whether it opens/responds, without additional reboots, installs, VDBus writes or configuration changes. Treat any test of fragrance hardware separately and avoid assuming equipment is fitted.
 
 ## Current objective
 
-Discriminate whether the previously observed RU05 day/night/auto no-effect result actually exercised the proven Android configuration-change rebuild after config50 was already loaded.
+SUCCESS UI exposure is proven after HU reboot with signed RU05. Narrow the remaining open question to initialization-path causality and actual fragrance hardware behavior; preserve working state.
 
 ## Current state
 
