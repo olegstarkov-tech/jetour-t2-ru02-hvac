@@ -75,6 +75,14 @@ Exact signed RU05 HVAC: `SVHvac_RU05.apk`, SHA-256 `f7dd31844be3fab910d191cca854
 - Message `2` then follows the shown-state path (`C1(false)`, `HvacService.d(true)`); message `1` follows the hidden-state path (`x0(false)`, `HvacService.d(false)`).
 - Therefore RU05 has a fully proven OEM same-process `configuration change -> destroy old main binding -> I0/L0/t1 -> fresh BottomLayout` mechanism. Process-static `EolConfig.mCarConfig1` can survive across this rebuild.
 
+### New live RU05 identity check — 2026-11-12, PROVEN
+
+- Canonical RU02/T1J vehicle is live and running signed RU05 HVAC from `/data/app/~~ReYPfSxE7hU_esE2vR25pg==/com.desaysv.svhvac-CQIUkgXPxSaJCkFmnERMPA==/base.apk`.
+- Live `sha256sum` exactly `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, matching the audited RU05 source artifact.
+- Live `pidof com.desaysv.svhvac` returned `13304` at that observation. PID is a point-in-time value, not fixed identity.
+- `dumpsys package` identifies active data-app version `Chery-8155_11_98bba4f_2024-12-19_2412202254_R`; preinstalled 2026 variant still resides at `/product/app/SVHvac` with `Chery-8155_11_30e96fe2_2026-02-25_2604101629_R`.
+- No fresh live proof yet that the RU05 process has actually loaded config50=1. Next step is read-only capture of *existing* logcat; do not clear logs, force-stop, or toggle day/night beforehand.
+
 ### Prior live RU05 day/night toggle observation — NEW DIRECT EVIDENCE
 
 - During an earlier live test on the running canonical vehicle with signed RU05 HVAC installed, the user manually switched the HU quick-shade day/night/auto modes multiple times.
