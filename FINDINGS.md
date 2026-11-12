@@ -4,6 +4,32 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 
 ## PROVEN
 
+## SUCCESS BOOT forensic comparison — 2026-11-12 (new PROVEN runtime evidence)
+
+Direct user log files analyzed: `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed after hot APK update, 31,884,609 B; PID 13304) and `RU05_FRAGRANCE_SUCCESS_BOOT.txt` (successful after full HU reboot, 20,779,601 B; PID 7601, 182,058 lines). Both runs used the exact signed RU05 HVAC, SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
+
+### Failed RU05 launch, 16:20:53 (entry ABSENT)
+
+- HVAC PID `13304` initialized `CarInfoProxy`, bound VehicleDevice and other services and rendered UI. **No** log `VDB-EXTRA-CarConfigUtil: init`, **no** CarConfigUtil `[onVDConnected]`, and **no** event `918905` subscribe from PID13304 across the full failed log. This negative-log evidence alone does not prove a method was never invoked, especially because RU05 static `HvacApplication.onCreate()` unconditionally calls `CarConfigUtil.init()` before `CarInfoProxy.init()`.
+- The VehicleDevice `get(e0006)` attributable by timing to PID13304 at `16:20:53.233` requested **`vehicle.persist.project.pn`**, not ext.configs. (Earlier `C5` backend read at 16:20:59 was by different PID13373 `svuploadlogapp`.)
+- At `16:20:53.317` PID13304 emitted nonfatal `Resources$NotFoundException: String resource ID #0x7f0f00a0` through `view/b.y0 -> K0 -> O0 -> I0 -> HvacApplication.onCreate`. Whether relevant is OPEN.
+- At `16:26:00` a real Android day->night config change invoked RU05 stock rebuild coordination, but Fragrance remained absent per operator.
+
+### Successful cold HU boot, 17:05:35 (entry VISIBLE)
+
+- `17:05:35.048`: `I/VDB-EXTRA-CarConfigUtil(7601): init`.
+- `17:05:35.111`: `VDConnector(7601)` confirms `onVDBusConnected` to VehicleDevice; `17:05:35.113`: `I/VDB-EXTRA-CarConfigUtil(7601): [onVDConnected] VDServiceDef.ServiceType.VEHICLE_DEVICE`.
+- `17:05:35.114`: `VDConnector(7601): [addSubscribe] event=918905`, and `17:05:35.118`: backend `subscribe(...eventList[0]=e0579, pid=7601, packageName=com.desaysv.svhvac)`.
+- `17:05:35.123`: within that very same connection/initialization sequence VehicleDevice handles `get(e0006)` for **`vehicle.persist.project.ext.configs`**, returning `b50197b55012513034300000c50a0004800c0010000100050100e10800000000` at `17:05:35.126`. This is exactly 32 bytes; index12=`0xC5`, config50=`1`. Temporal and static-call correlation strongly attribute this request to RU05 CarConfigUtil/EolConfig, though VehicleDevice's `get` line lacks explicit caller PID; do not overclaim direct caller identity/proof of static field content.
+- RU05 `CarInfoProxy.init` follows at `17:05:35.152`, after CarConfigUtil connect and config read.
+- No `Resources$NotFoundException` occurs in the entire 182,058-line success capture. No `VDB-EXTRA-EolConfig` or explicit `isFragranceExist` log occurs, so direct measurement of static `mCarConfig1[12]` remains unproven.
+- On-device APK hash and `pidof` prove this is RU05 PID `7601`; operator visually confirms Fragrance entry visible.
+
+### Interpretation
+
+**PROVEN:** complete HU reboot with already-installed signed RU05 produces successful Fragrance UI entry; this successful boot contains the in-HVAC CarConfigUtil initialization + VDBus `918905` subscription + C5 ext-config read sequence that was absent in the failed hot-install launch. This is the strongest **process-initialization-path contrast**, not yet proof of why the `CarConfigUtil.init` path was not logged during hot-install despite the static unconditional call. Full reboot is a **demonstrated successful procedure in this one live A/B test**, not yet validated as universally necessary or sufficient. Root cause and whether fragrance hardware actuates remain OPEN. Do not perturb the presently successful state with blind writes/restarts.
+
+
 - Bench is Jetour T2 / T1J, official RU dealer vehicle, Desay SV 8155, firmware 00.00.02, telematics present.
 - Engineering Fragrance toggle changes config1 byte12 between `0x85` and `0xC5`; delta `0x40` = bit6.
 - Current RU02 Fragrance config is ID50 from `vehicle.persist.project.ext.configs`; current startup has been observed with byte12=`C5`.
