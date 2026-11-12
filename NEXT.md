@@ -1,5 +1,12 @@
 # RU02-HVAC NEXT
 
+## Live operator confirmation: cartridges and Fragrance controls — 2026-11-12
+
+- **PROVEN:** After full HU reboot with verified signed RU05 HVAC, user directly confirms `Картриджи видны, все управляется`. This verifies the displayed cartridge interface and responsiveness of controls, beyond simply making the Fragrance button visible.
+- **OPEN:** Whether physical scent is emitted; user has not explicitly confirmed that, nor the repeatability of this result on subsequent boots.
+- Preserve the working installation. No reinstall, reboot, blind VDBus writes or more night-mode toggles.
+- **One optional natural next step:** confirm whether scent actually comes from the diffuser during standard UI operation. Otherwise pursue only offline root-cause comparison between failed hot-install and successful cold-boot CarConfigUtil initialization.
+
 ## Updated priority after SUCCESS log analysis — 2026-11-12
 
 - **COMPLETE/PROVEN:** RU05 confirmed running by SHA and PID7601 after full HU reboot; Fragrance button appears.
