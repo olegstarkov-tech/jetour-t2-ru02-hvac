@@ -103,6 +103,11 @@ Direct user log files analyzed: `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed after ho
 - Result establishes a **successful post-reboot RU05 Fragrance UI appearance** after a negative same-process Android night-mode reconstruction test. Physical fragrance operation is not yet verified, and startup-order causation is a hypothesis, not proof.
 - This distinguishes a complete boot from in-process UI refresh and suggests an initialization-order-sensitive mechanism, but the causal process-local config50 pathway is still **OPEN**. Do not claim root cause.
 
+### Direct live end-to-end UI operation (2026-11-12)
+
+- After full HU reboot with exact signed RU05 HVAC verified by APK SHA256, the Fragrance button is visible; user additionally confirms **"Картриджи видны, все управляется"**. Therefore cartridge representations/status and interactive UI controls function; this is materially stronger than button visibility alone.
+- Physical fragrance output and repeatability after later starts remain OPEN unless directly reported, and the underlying reason hot-install lacked CarConfigUtil init logs remains OPEN.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
