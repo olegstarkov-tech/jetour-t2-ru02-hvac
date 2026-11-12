@@ -62,6 +62,18 @@ Result: PROVEN static observation.
 
 Interpretation: relevant UI evidence, but not sufficient alone to explain why old HVAC also fails on the same system base.
 
+## E7 — Signed RU05 HVAC: hot update vs full HU reboot (2026-11-12)
+
+Result: **PROVEN positive Fragrance UI after full HU reboot**, negative after hot-update/day-night change.
+
+- Both runs: official T1J/RU 00.00.02, exact signed RU05 HVAC SHA256 `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`.
+- **Hot-update PID13304, 16:20:53:** UI lacked Fragrance. Runtime logs showed `CarInfoProxy` and vehicle binding, but **no** HVAC process-local `VDB-EXTRA-CarConfigUtil.init`, `[onVDConnected]`, or own event918905 subscription. VehicleDevice's early get(e0006) read `vehicle.persist.project.pn`. Nonfatal Resources$NotFoundException 0x7f0f00a0 at 16:20:53.317. Genuine Android night-mode rebuild at 16:26 also did not expose button.
+- **Full HU reboot PID7601, 17:05:35:** user directly observes Fragrance button VISIBLE. HVAC's own `CarConfigUtil.init` at .048, `onVDConnected` at .113, event918905 subscribe at .114 and backend subscription by PID7601 at .118, ext.configs C5 returned by VehicleDevice at .126. CarInfoProxy.init at .152. No resource exception in successful captured boot.
+- Original RU02 HVAC remains preinstalled under `/product/app/SVHvac`; active code after reboot was RU05 `/data/app/.../base.apk` with matching SHA. No other device changes are part of this successful observation.
+- **Inference/OPEN:** successful boot executes a full carconfig initialization path absent from the failed run's log; direct runtime verification of in-process static config and causal reason for hot-install discrepancy still open. Hardware Fragrance operation is not established by a visible menu.
+
+Artifacts: user-uploaded `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed) and `RU05_FRAGRANCE_SUCCESS_BOOT.txt` (success), checked in this investigation. Successful-state rollback remains the stock RU02 system APK, but **do not perform rollback while testing/using the working RU05 UI**.
+
 ## Experiment discipline
 
 For future tests record:
