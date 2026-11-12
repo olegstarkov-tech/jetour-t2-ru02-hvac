@@ -32,6 +32,12 @@ Discriminate whether the previously observed RU05 day/night/auto no-effect resul
 - Most promising new distinction: exact RU05 APK `CarConfigUtil.init` unconditionally logs tag `VDB-EXTRA-CarConfigUtil`, but PID13304 did not emit it at startup, whereas CarInfoProxy and other VDBus logs are present. Investigate shared framework class loading rather than assuming process-local config50=1.
 - **One next read-only step:** retrieve `BOOTCLASSPATH` and `dumpsys package com.desaysv.svhvac` library details to assess whether framework `vdbus_extra.jar` can supersede APK-embedded classes. Then decide any next probe based on evidence; no writes/reboots/config mutations.
 
+### Next distinction — live boot class path 2026-11-12
+
+- Direct `BOOTCLASSPATH` read confirms `/system/framework/vdbus_extra.jar`, `/system/framework/vdbus.jar`, and `/system/framework/chery-platform-internal.jar` are in boot-loader search space.
+- Android parent-first class resolution makes a system-jar duplicate of RU05 `CarConfigUtil/EolConfig` a strong **hypothesis** for the missing `CarConfigUtil.init` logs, but the framework jar class inventory has not been directly verified.
+- **CURRENT ONE NEXT STEP, read-only:** pull `/system/framework/vdbus_extra.jar` from live RU02 to host, record SHA-256, upload jar; offline compare full class descriptors/methods with signed RU05 APK. Do not repeat UI-mode changes or modify vehicle properties.
+
 ## Next step
 
 Vehicle is now available. As of 2026-11-12 live evidence, exact RU05 signed APK SHA matches `f7dd31844be3fab910d191cca8545391d5cb213c416950707c3d75f184e13522`, active `/data/app/.../base.apk`, PID snapshot `13304`. Stock 2026 HVAC stays at `/product/app/SVHvac`. **Identity/PID step complete.**
