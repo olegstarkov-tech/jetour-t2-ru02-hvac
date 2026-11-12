@@ -54,6 +54,12 @@ Only durable findings belong here. Labels: PROVEN / LIKELY / DISPROVEN / OPEN.
 - Simple day/night UI refresh as a successful workaround is ruled out for the observed test. In-process RU05 config50 remains unknown; backend config50=1 was read by *another* app.
 - RU05 embedded `CarConfigUtil.init` has an unconditional `Log.i("VDB-EXTRA-CarConfigUtil", "init")` before VDBus initialization; PID13304 emitted no such message, even though `VDB-EXTRA-CarInfoProxy init` occurred. Treat runtime class source / system jar shadowing as a **hypothesis**, not proven.
 
+### BOOTCLASSPATH / duplicate-class hypothesis (2026-11-12)
+
+- Live RU02 environment includes `/system/framework/vdbus_extra.jar`, `/system/framework/vdbus.jar`, and `/system/framework/chery-platform-internal.jar` in `BOOTCLASSPATH`. A filtered `dumpsys package` shows data-app active and product-app preinstalled HVAC but no matching optional/shared-library lines; boot class path entries do not require an app manifest `uses-library` declaration.
+- If `com.desaysv.ivi.extra.project.carconfig.CarConfigUtil` or `EolConfig` appears in the boot-path jar, parent-first lookup is a technically grounded mechanism for shadowing packaged RU05 implementations.
+- The duplicated class descriptors and their exact runtime behavior are **unverified** pending offline extraction of the system jar. The previous absence of expected logging remains evidence worth investigating but does not prove class substitution by itself.
+
 ## LIKELY
 
 - Current RU02-generation root cause remains a T1J UI implementation omission/regression.
