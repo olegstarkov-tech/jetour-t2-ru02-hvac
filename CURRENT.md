@@ -29,6 +29,13 @@ Direct user log files analyzed: `RU05_FRAGRANCE_CONFIG_LOG.txt` (failed after ho
 
 **PROVEN:** complete HU reboot with already-installed signed RU05 produces successful Fragrance UI entry; this successful boot contains the in-HVAC CarConfigUtil initialization + VDBus `918905` subscription + C5 ext-config read sequence that was absent in the failed hot-install launch. This is the strongest **process-initialization-path contrast**, not yet proof of why the `CarConfigUtil.init` path was not logged during hot-install despite the static unconditional call. Full reboot is a **demonstrated successful procedure in this one live A/B test**, not yet validated as universally necessary or sufficient. Root cause and whether fragrance hardware actuates remain OPEN. Do not perturb the presently successful state with blind writes/restarts.
 
+## NEW DIRECT USER EVIDENCE — 2026-11-12, Fragrance cartridges and controls working
+
+- On official RU02/T1J vehicle running the SHA-confirmed signed RU05 HVAC after complete HU reboot (previously observed PID7601), user reports **"Картриджи видны, все управляется"**: cartridges are visible/recognized by the Fragrance UI and the controls are operational from the user's perspective.
+- **PROVEN:** not merely exposed button; Fragrance panel is usable, cartridge information is displayed, and UI/control interactions respond in this current state.
+- **NOT YET DIRECTLY CONFIRMED:** physically noticeable fragrance emission, hardware output/actuation telemetry, long-term persistence across repeated starts, or standalone success on the native RU02 HVAC.
+- **Do not disrupt the working state.** No more APK changes, blind VDBus writes, reboot or uiMode testing. If the operator wishes to qualify physical operation, one natural, non-invasive check is whether scent is actually emitted when enabled; avoid asserting it was proven by visual controls alone.
+
 ## NEW LIVE EVIDENCE — 2026-11-12, fragrance visible after HU reboot
 
 - The user directly reports that **Fragrance/Aromatization appeared in the vehicle UI after rebooting the head unit**. This supersedes the earlier observation of absence, but only for the *post-reboot* state.
